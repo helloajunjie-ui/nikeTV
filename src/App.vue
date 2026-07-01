@@ -730,10 +730,10 @@ function onKeyDown(e) {
 onMounted(async () => {
   await loadChannels()
 
-  // 首次使用：自动导入默认源（🇨🇳 聚合）
+  // 首次使用：自动导入默认源（本地精选，零网络延迟 + 频道最全）
   if (channels.value.length === 0) {
-    const defaultUrl = 'https://raw.githubusercontent.com/HerbertHe/iptv-sources/gh-pages/cn.m3u'
-    const defaultLabel = '🇨🇳 聚合'
+    const defaultUrl = '/iptv4.m3u'
+    const defaultLabel = '🇨🇳 央视·卫视·地方 聚合'
     try {
       const { channels: defaultChannels } = await getPresetChannels(defaultUrl, async (fetchUrl) => {
         return await loadM3USource(fetchUrl)

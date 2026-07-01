@@ -1,4 +1,6 @@
-// NikoTV Service Worker - 离线缓存 + PWA 支持 + 后台源净化
+// NikoTV Service Worker - 离线缓存 + PWA 支持
+// 注意：后台批量健康检测已禁用（原因见 App.vue checkAllSources 注释）
+// 批量并发 HEAD 测活 = DDoS 自己，采用懒加载模式替代
 const CACHE_NAME = 'nikotv-v1'
 const PRECACHE_URLS = [
   '/',
@@ -115,183 +117,25 @@ self.addEventListener('message', (event) => {
   }
 })
 
-// ===== 后台健康检测 =====
+// ===== 后台健康检测（已禁用） =====
+// 架构决策：批量并发 HEAD 测活 = DDoS 自己。
+// 700+ 频道瞬间打满 Cloudflare Worker 并发限制 → 防火墙截断连接时不带 CORS 头 → 满屏 CORS 错误
+// 替代方案：懒加载测活 — 用户点击频道时才播放，失败自动切下一线路
 let healthCheckTimer = null
 let isHealthChecking = false
 
 function scheduleHealthCheck() {
-  // 清除旧定时器
-  if (healthCheckTimer) clearTimeout(healthCheckTimer)
-
-  // 如果正在检测中，跳过（避免重叠）
-  if (isHealthChecking) return
-
-  // 延迟 5 秒后开始检测（给页面稳定时间）
-  healthCheckTimer = setTimeout(() => {
-    performHealthCheck()
-  }, 5000)
+  // 已禁用：不再执行任何后台批量测活
+  // 保留函数签名避免调用处报错
 }
 
 async function performHealthCheck() {
-  if (isHealthChecking) return
-  isHealthChecking = true
-
-  // 记录本次检测开始时的 generation
-  // 如果检测过程中主线程同步了新频道列表（generation 递增），则丢弃本次结果
-  const genAtStart = currentGeneration
-
-  const channels = await getAllChannels()
-  if (!channels || channels.length === 0) {
-    isHealthChecking = false
-    return
-  }
-
-  // 展平所有线路：{ channelIndex, urlIndex, url, channelId }
-  // 使用 channelId 而非索引，防止主线程 channels 数组变化导致索引错位
-  const flatUrls = []
-  for (let ci = 0; ci < channels.length; ci++) {
-    const ch = channels[ci]
-    if (!ch.urls) continue
-    for (let ui = 0; ui < ch.urls.length; ui++) {
-      flatUrls.push({ ci, ui, url: ch.urls[ui].url, channelId: ch.id })
-    }
-  }
-
-  if (flatUrls.length === 0) {
-    isHealthChecking = false
-    return
-  }
-
-  const TIMEOUT = 5000  // 每个请求超时 5s
-  const deadUrls = []
-
-  // 自适应调度
-  const MAX_DURATION = 5 * 60 * 1000 // 5 分钟
-  const estimatedTimePerBatch = TIMEOUT + 1000
-  const maxBatches = Math.floor(MAX_DURATION / estimatedTimePerBatch)
-  const dynamicBatchSize = Math.max(3, Math.ceil(flatUrls.length / maxBatches))
-  const actualBatchSize = Math.min(dynamicBatchSize, 10)
-
-  const startTime = Date.now()
-
-  // 批量收集健康结果，避免逐条 postMessage
-  const batchResults = []
-
-  for (let i = 0; i < flatUrls.length; i += actualBatchSize) {
-    const batch = flatUrls.slice(i, i + actualBatchSize)
-    const results = await Promise.allSettled(
-      batch.map((item) => checkUrl(item, TIMEOUT))
-    )
-
-    results.forEach((result, idx) => {
-      const item = batch[idx]
-      const alive = result.status === 'fulfilled' && result.value === true
-      batchResults.push({ ci: item.ci, ui: item.ui, channelId: item.channelId, alive })
-      if (!alive) {
-        deadUrls.push(item.url)
-      }
-    })
-
-    // 自适应间隔
-    const elapsed = Date.now() - startTime
-    const remaining = MAX_DURATION - elapsed
-    if (remaining < 10000 && i + actualBatchSize < flatUrls.length) {
-      await sleep(200)
-    } else if (i + actualBatchSize < flatUrls.length) {
-      await sleep(1000)
-    }
-  }
-
-  // 检查 generation 是否仍然匹配
-  // 如果主线程在此期间同步了新频道列表，则丢弃本次结果避免覆盖
-  if (currentGeneration !== genAtStart) {
-    console.log('[SW] 检测期间频道列表已更新，丢弃本次健康检测结果')
-    isHealthChecking = false
-    healthCheckTimer = setTimeout(() => {
-      performHealthCheck()
-    }, 5 * 60 * 1000)
-    return
-  }
-
-  // 批量发送健康结果（替代逐条 CHANNEL_HEALTH_UPDATE）
-  if (batchResults.length > 0) {
-    self.clients.matchAll().then(clients => {
-      clients.forEach(client => {
-        client.postMessage({
-          type: 'BATCH_HEALTH_UPDATE',
-          results: batchResults,
-          timestamp: Date.now(),
-        })
-      })
-    })
-  }
-
-  // 通知主线程死亡线路（仅用于自动切换，不再参与计数）
-  if (deadUrls.length > 0) {
-    self.clients.matchAll().then(clients => {
-      clients.forEach(client => {
-        client.postMessage({
-          type: 'DEAD_CHANNELS',
-          urls: deadUrls,
-          timestamp: Date.now(),
-        })
-      })
-    })
-  }
-
-  // 自适应周期
-  const actualDuration = Date.now() - startTime
-  const nextInterval = Math.max(5 * 60 * 1000, Math.min(30 * 60 * 1000, actualDuration * 3))
-  
-  isHealthChecking = false
-  healthCheckTimer = setTimeout(() => {
-    performHealthCheck()
-  }, nextInterval)
+  // 已禁用
 }
 
-/**
- * 检测单个 URL 是否存活
- */
 async function checkUrl(item, timeout) {
-  if (!item || !item.url) return true
-
-  let controller = null
-  let timer = null
-  let alive = false
-
-  try {
-    controller = new AbortController()
-    timer = setTimeout(() => controller.abort(), timeout)
-
-    try {
-      const response = await fetch(item.url, {
-        method: 'HEAD',
-        signal: controller.signal,
-        mode: 'cors',
-      })
-      alive = response.ok
-    } catch {
-      clearTimeout(timer)
-      controller = new AbortController()
-      timer = setTimeout(() => controller.abort(), timeout)
-      try {
-        const fallbackResp = await fetch(item.url, {
-          method: 'GET',
-          headers: { Range: 'bytes=0-0' },
-          signal: controller.signal,
-          mode: 'cors',
-        })
-        alive = fallbackResp.ok
-      } catch {
-        alive = false
-      }
-    }
-
-    clearTimeout(timer)
-    return alive
-  } catch {
-    return false
-  }
+  // 已禁用
+  return true
 }
 
 // ===== IndexedDB 工具函数 =====

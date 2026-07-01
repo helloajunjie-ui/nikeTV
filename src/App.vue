@@ -259,7 +259,7 @@ import SourceHealthPanel from './components/SourceHealthPanel.vue'
 import { useChannelStore } from './composables/useChannelStore.js'
 import { useGesture } from './composables/useGesture.js'
 import { parseEPG, getCurrentProgramme, buildEpgIndex, findProgrammes } from './utils/epgParser.js'
-import { filterAliveChannels, refreshFromUpstream, checkSourceHealth } from './utils/sourceManager.js'
+import { refreshFromUpstream } from './utils/sourceManager.js'
 import { parseM3U, loadM3USource } from './utils/m3uParser.js'
 import { startAutoUpdate, fetchLatestSource, matchRepo } from './utils/sourceUpdater.js'
 import { getPresetChannels } from './utils/presetCache.js'
@@ -292,7 +292,10 @@ const showHUD = ref(false)
 const showHealthPanel = ref(false)
 const showEPG = ref(false)
 
-// ===== 源健康度 =====
+// ===== 源健康度（懒加载模式：不再批量测活） =====
+// 架构决策：不再在客户端做大规模并发 HEAD 测活。
+// 700 个频道瞬间并发请求 Cloudflare Worker → Worker 被限流 → 上游 IP 被拉黑 → 防火墙切断连接时不带 CORS 头 → 满屏 CORS 错误 → JS 主线程卡死
+// 正确做法：用户点击频道时才请求播放，行就行，不行就自动切下一线路
 const healthChecking = ref(false)
 const healthChecked = ref(0)
 const aliveCount = ref(0)
@@ -427,9 +430,8 @@ async function handleImport(list, sourceMeta) {
     }
     // 同步频道列表给 SW（后台健康检测用）
     setTimeout(() => syncChannelsToSW(), 300)
-    // Bug M: 延迟健康检测到 30 秒后，避免刚导入时网络抖动误杀频道
-    // 用户刚导入的源可能部分频道需要时间建立连接
-    setTimeout(() => checkAllSources(), 30000)
+    // 批量测活已禁用（checkAllSources 现在是空函数）
+    // 采用懒加载模式：用户点击频道时才播放，失败自动切下一线路
   }
 }
 
@@ -440,84 +442,13 @@ async function handleRemoveSource(sourceId) {
   setTimeout(() => syncChannelsToSW(), 300)
 }
 
-// ===== 源健康度检测（聚合模式：逐线路检测，标记 alive/dead） =====
+// ===== 源健康度检测（已禁用：不再批量测活） =====
+// 架构决策：批量并发 HEAD 测活 = DDoS 自己。
+// 700+ 频道瞬间打满 Cloudflare Worker 并发限制 → 防火墙截断连接时不带 CORS 头 → 满屏 CORS 错误 → 主线程卡死
+// 替代方案：懒加载测活（Lazy Health Check）— 用户点击频道时才播放，失败自动切下一线路
 async function checkAllSources() {
-  if (healthChecking.value || channels.value.length === 0) return
-  healthChecking.value = true
-  healthChecked.value = 0
-  aliveCount.value = 0
-  deadCount.value = 0
-
-  // 展平所有线路为 { ci, ui, url } 列表，保留索引信息
-  const flatUrls = []
-  for (let ci = 0; ci < channels.value.length; ci++) {
-    const ch = channels.value[ci]
-    if (!ch.urls) continue
-    for (let ui = 0; ui < ch.urls.length; ui++) {
-      flatUrls.push({ ci, ui, url: ch.urls[ui].url })
-    }
-  }
-
-  const totalLines = flatUrls.length
-  let checked = 0
-  let dead = 0
-
-  // 分批并发检测，保留原始 ci/ui 索引
-  const MAX_CONCURRENT = 5
-  const aliveResults = new Set() // 存储 "ci:ui" 字符串
-  for (let i = 0; i < flatUrls.length; i += MAX_CONCURRENT) {
-    const batch = flatUrls.slice(i, i + MAX_CONCURRENT)
-    const batchResults = await Promise.allSettled(
-      batch.map(async (item) => {
-        // 使用代理后的 URL 进行健康检测（避免 Mixed Content 问题）
-        const proxiedUrl = await getProxiedUrl(item.url)
-        const alive = await checkSourceHealth(proxiedUrl)
-        return { item, alive }
-      })
-    )
-    for (const result of batchResults) {
-      checked++
-      if (result.status === 'fulfilled' && result.value.alive) {
-        aliveResults.add(`${result.value.item.ci}:${result.value.item.ui}`)
-      } else {
-        dead++
-      }
-    }
-    healthChecked.value = checked
-    deadCount.value = dead
-    aliveCount.value = checked - dead
-  }
-
-  // 标记每条线路的 alive 状态
-  for (const item of flatUrls) {
-    const ch = channels.value[item.ci]
-    if (ch && ch.urls[item.ui]) {
-      ch.urls[item.ui].alive = aliveResults.has(`${item.ci}:${item.ui}`)
-    }
-  }
-
-  // 清理：移除所有线路都死亡的频道（保留至少一条线路的频道）
-  const before = channels.value.length
-  channels.value = channels.value.filter(ch => ch.urls.some(u => u.alive !== false))
-
-  if (channels.value.length < before) {
-    // 检查是否有源的所有频道都被移除
-    const activeSourceIds = new Set(
-      channels.value.flatMap(ch => ch.urls.map(u => u.sourceId))
-    )
-    sources.value = sources.value.filter(s => activeSourceIds.has(s.id))
-
-    if (activeIndex.value >= channels.value.length) {
-      activeIndex.value = Math.max(0, channels.value.length - 1)
-    }
-
-    await persist()
-
-    // 通知 SW 使用新频道列表
-    setTimeout(() => syncChannelsToSW(), 500)
-  }
-
-  healthChecking.value = false
+  // 已禁用：不再执行任何批量测活
+  console.log('[HealthCheck] 批量测活已禁用，采用懒加载模式')
 }
 
 // ===== 从上游刷新源 =====
@@ -533,8 +464,8 @@ async function refreshSource() {
       }
     }
   }
-  checkAllSources()
-  // 同步更新后的频道列表给 SW（checkAllSources 内部可能因无频道被移除而不触发 sync）
+  // 批量测活已禁用，不再调用 checkAllSources()
+  // 同步更新后的频道列表给 SW
   setTimeout(() => syncChannelsToSW(), 600)
 }
 
@@ -858,7 +789,7 @@ onMounted(async () => {
         syncChannelsToSW()
       })
     }
-    setTimeout(() => checkAllSources(), 2000)
+    // 批量测活已禁用，不再调用 checkAllSources()
   }
 
   // 监听 SW 消息

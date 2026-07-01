@@ -69,7 +69,18 @@ export default {
       const responseHeaders = new Headers(response.headers)
       Object.keys(CORS_HEADERS).forEach(key => responseHeaders.set(key, CORS_HEADERS[key]))
 
-      // ── 4. M3U8 重写引擎 ──
+      // ── 4. HEAD 请求特殊处理 ──
+      // HEAD 请求不需要处理 body，直接返回带 CORS 的空响应
+      // 避免读取 body 浪费 Worker CPU 时间
+      if (request.method === 'HEAD') {
+        return new Response(null, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: responseHeaders,
+        })
+      }
+
+      // ── 5. M3U8 重写引擎 ──
       const contentType = response.headers.get('content-type') || ''
       const isM3U8 = contentType.includes('mpegurl') ||
                      contentType.includes('x-mpegURL') ||
@@ -89,7 +100,7 @@ export default {
         })
       }
 
-      // ── 5. 非 M3U8 内容直接透传 ──
+      // ── 6. 非 M3U8 内容直接透传 ──
       return new Response(response.body, {
         status: response.status,
         statusText: response.statusText,
@@ -97,7 +108,11 @@ export default {
       })
 
     } catch (error) {
-      return new Response(`Proxy Error: ${error.message}`, {
+      // 【终极兜底】上游死锁、超时或 Worker 被限流
+      // 强制返回 502 并带上跨域头，防止前端报 CORS 错
+      // 防火墙切断连接时不会附带 Worker 设置的 CORS 头，浏览器会直接报 CORS 错误
+      // 这里确保即使上游挂了，前端也能收到带 CORS 头的错误响应
+      return new Response(`Upstream Error: ${error.message}`, {
         status: 502,
         headers: CORS_HEADERS,
       })

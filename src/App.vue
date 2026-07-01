@@ -89,16 +89,20 @@
                     </svg>
                   </button>
 
-                  <!-- 源指示器 -->
+                  <!-- 源指示器 / 切换器 -->
                   <div class="flex items-center gap-1.5">
-                    <div
+                    <button
                       v-for="src in sources"
                       :key="src.id"
-                      class="px-2 py-1 rounded-md text-xs"
-                      :class="currentSource?.id === src.id ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/5 text-white/40'"
+                      class="px-2 py-1 rounded-md text-xs transition-all"
+                      :class="currentSource?.id === src.id
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 cursor-default'
+                        : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/70 cursor-pointer'"
+                      :title="currentSource?.id === src.id ? '当前源' : `切换到 ${src.label}`"
+                      @click="handleSwitchSource(src.id)"
                     >
                       {{ src.label.length > 8 ? src.label.slice(0, 8) + '…' : src.label }}
-                    </div>
+                    </button>
                   </div>
                 </div>
 

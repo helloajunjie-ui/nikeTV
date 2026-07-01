@@ -1,9 +1,11 @@
 /**
  * NikoTV - Cloudflare Worker CORS 代理
  *
+ * 职责：仅代理 HTTP 直播流（通过 ?url= 参数），解决 Mixed Content 问题
+ * 前端 SPA 部署在 Cloudflare Pages（同仓库，dist/ 目录）
+ *
  * 部署方式：
- *   npm install -g wrangler
- *   wrangler deploy
+ *   cd worker && wrangler deploy
  *
  * 前端调用：
  *   https://你的worker域名/?url=https://原始直播流地址.m3u8
@@ -19,198 +21,170 @@ export default {
   async fetch(request) {
     const url = new URL(request.url)
 
-    // ── 健康检查 / CORS 预检 ──
+    // ── CORS 预检 ──
     if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: corsHeaders(),
-      })
+      return new Response(null, { headers: corsHeaders() })
     }
 
-    if (url.pathname === '/health' || url.pathname === '/') {
+    // ── 健康检查 ──
+    if (url.pathname === '/health') {
       return new Response(JSON.stringify({ status: 'ok', service: 'NikoTV Proxy' }), {
         headers: { 'Content-Type': 'application/json', ...corsHeaders() },
       })
     }
 
-    // ── 参数校验 ──
+    // ── 代理请求 ──
     const targetUrl = url.searchParams.get('url')
     if (!targetUrl) {
-      return jsonResponse({ error: 'Missing "url" parameter' }, 400)
+      return jsonResponse({ error: 'Proxy only. Use ?url= parameter.' }, 400)
     }
 
-    // 安全校验：只允许 http/https 协议
-    try {
-      const parsed = new URL(targetUrl)
-      if (!['http:', 'https:'].includes(parsed.protocol)) {
-        return jsonResponse({ error: 'Invalid protocol' }, 400)
-      }
-    } catch {
-      return jsonResponse({ error: 'Invalid URL' }, 400)
+    return handleProxy(url, targetUrl, request)
+  },
+}
+
+async function handleProxy(url, targetUrl, request) {
+  // 安全校验
+  try {
+    const parsed = new URL(targetUrl)
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return jsonResponse({ error: 'Invalid protocol' }, 400)
     }
+  } catch {
+    return jsonResponse({ error: 'Invalid URL' }, 400)
+  }
 
-    // 可选：简单鉴权（防止被滥用）
-    const secret = url.searchParams.get('secret')
-    const expectedSecret = typeof PROXY_SECRET !== 'undefined' ? PROXY_SECRET : null
-    if (expectedSecret && secret !== expectedSecret) {
-      return jsonResponse({ error: 'Unauthorized' }, 403)
-    }
+  // 可选鉴权
+  const secret = url.searchParams.get('secret')
+  const expectedSecret = typeof PROXY_SECRET !== 'undefined' ? PROXY_SECRET : null
+  if (expectedSecret && secret !== expectedSecret) {
+    return jsonResponse({ error: 'Unauthorized' }, 403)
+  }
 
-    // ── 代理请求 ──
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 15000) // 15s 超时
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
 
-      const modifiedRequest = new Request(targetUrl, {
-        method: request.method,
-        headers: filterHopByHopHeaders(request.headers),
-        body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : null,
-        signal: controller.signal,
-        // 关键：不跟随重定向，让客户端自己处理（对 TS 分片流更友好）
-        redirect: 'manual',
-      })
+    const modifiedRequest = new Request(targetUrl, {
+      method: request.method,
+      headers: filterHopByHopHeaders(request.headers),
+      body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : null,
+      signal: controller.signal,
+      redirect: 'manual',
+    })
 
-      let response = await fetch(modifiedRequest)
-      clearTimeout(timeoutId)
+    let response = await fetch(modifiedRequest)
+    clearTimeout(timeoutId)
 
-      // ── 处理重定向 ──
-      if (response.status >= 300 && response.status < 400) {
-        const location = response.headers.get('Location')
-        if (location) {
-          // 跟随重定向，但用新的请求（避免手动处理）
-          response = await fetch(location, {
-            method: request.method,
-            headers: filterHopByHopHeaders(request.headers),
-            signal: controller.signal,
-          })
-        }
-      }
-
-      // ── 构建响应头 ──
-      const newHeaders = new Headers(response.headers)
-      Object.entries(corsHeaders()).forEach(([k, v]) => newHeaders.set(k, v))
-
-      // 修正 Content-Type
-      fixContentType(newHeaders, targetUrl)
-
-      // ── M3U8 相对路径重写（核心修复） ──
-      if (targetUrl.includes('.m3u8') && response.ok) {
-        const originalText = await response.text()
-        const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1)
-        const proxyBase = `${url.origin}${url.pathname}?url=`
-
-        const rewritten = originalText.split('\n').map(line => {
-          const trimmed = line.trim()
-          if (trimmed.startsWith('#') || trimmed === '' ||
-              trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-            return line
-          }
-          const absoluteUrl = new URL(trimmed, baseUrl).href
-          return line.replace(trimmed, `${proxyBase}${encodeURIComponent(absoluteUrl)}`)
-        }).join('\n')
-
-        return new Response(rewritten, {
-          status: response.status,
-          statusText: response.statusText,
-          headers: newHeaders,
+    // 处理重定向
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('Location')
+      if (location) {
+        response = await fetch(location, {
+          method: request.method,
+          headers: filterHopByHopHeaders(request.headers),
+          signal: controller.signal,
         })
       }
+    }
 
-      // ── 流式响应（带大小限制） ──
-      // 对于 TS/视频分片，使用流式传输而非收集所有 chunks
-      // 这样可以减少延迟，让视频尽快开始播放
-      const maxSize = parseInt(typeof MAX_RESPONSE_SIZE !== 'undefined'
-        ? MAX_RESPONSE_SIZE : DEFAULT_MAX_SIZE, 10)
+    // 构建响应头
+    const newHeaders = new Headers(response.headers)
+    Object.entries(corsHeaders()).forEach(([k, v]) => newHeaders.set(k, v))
+    fixContentType(newHeaders, targetUrl)
 
-      if (response.body) {
-        // 检查是否是视频/音频流 → 使用流式传输
-        const contentType = newHeaders.get('Content-Type') || ''
-        const isStreamable = contentType.includes('video') ||
-                             contentType.includes('audio') ||
-                             contentType.includes('octet-stream') ||
-                             targetUrl.includes('.ts') ||
-                             targetUrl.includes('.m4s')
+    // M3U8 相对路径重写
+    if (targetUrl.includes('.m3u8') && response.ok) {
+      const originalText = await response.text()
+      const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1)
+      const proxyBase = `${url.origin}${url.pathname}?url=`
 
-        if (isStreamable) {
-          // 流式传输：直接透传 response.body，不收集
-          // 使用 TransformStream 做大小限制
-          const { readable, writable } = new TransformStream()
-          const writer = writable.getWriter()
-          const reader = response.body.getReader()
-          let totalSize = 0
-
-          // 后台读取并转发，同时检查大小限制
-          ;(async () => {
-            try {
-              while (true) {
-                const { done, value } = await reader.read()
-                if (done) {
-                  await writer.close()
-                  break
-                }
-                totalSize += value.byteLength
-                if (totalSize > maxSize) {
-                  reader.cancel()
-                  writer.abort(new Error('Response too large'))
-                  break
-                }
-                await writer.write(value)
-              }
-            } catch (e) {
-              // 客户端断开连接是正常情况，忽略错误
-              try { writer.abort(e) } catch {}
-            }
-          })()
-
-          return new Response(readable, {
-            status: response.status,
-            statusText: response.statusText,
-            headers: newHeaders,
-          })
+      const rewritten = originalText.split('\n').map(line => {
+        const trimmed = line.trim()
+        if (trimmed.startsWith('#') || trimmed === '' ||
+            trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+          return line
         }
+        const absoluteUrl = new URL(trimmed, baseUrl).href
+        return line.replace(trimmed, `${proxyBase}${encodeURIComponent(absoluteUrl)}`)
+      }).join('\n')
 
-        // 非流式内容（如 JSON、XML）：收集后返回
-        const reader = response.body.getReader()
-        let size = 0
-        const chunks = []
-
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          size += value.byteLength
-          if (size > maxSize) {
-            reader.cancel()
-            return jsonResponse({ error: 'Response too large' }, 413)
-          }
-          chunks.push(value)
-        }
-
-        const body = new Uint8Array(size)
-        let offset = 0
-        for (const chunk of chunks) {
-          body.set(chunk, offset)
-          offset += chunk.byteLength
-        }
-
-        return new Response(body, {
-          status: response.status,
-          statusText: response.statusText,
-          headers: newHeaders,
-        })
-      }
-
-      return new Response(response.body, {
+      return new Response(rewritten, {
         status: response.status,
         statusText: response.statusText,
         headers: newHeaders,
       })
-
-    } catch (err) {
-      if (err.name === 'AbortError') {
-        return jsonResponse({ error: 'Request timeout' }, 504)
-      }
-      return jsonResponse({ error: err.message }, 502)
     }
-  },
+
+    // 流式响应
+    const maxSize = parseInt(
+      typeof MAX_RESPONSE_SIZE !== 'undefined' ? MAX_RESPONSE_SIZE : DEFAULT_MAX_SIZE, 10
+    )
+
+    if (response.body) {
+      const contentType = newHeaders.get('Content-Type') || ''
+      const isStreamable = contentType.includes('video') ||
+                           contentType.includes('audio') ||
+                           contentType.includes('octet-stream') ||
+                           targetUrl.includes('.ts') ||
+                           targetUrl.includes('.m4s')
+
+      if (isStreamable) {
+        const { readable, writable } = new TransformStream()
+        const writer = writable.getWriter()
+        const reader = response.body.getReader()
+        let totalSize = 0
+
+        ;(async () => {
+          try {
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) { await writer.close(); break }
+              totalSize += value.byteLength
+              if (totalSize > maxSize) { reader.cancel(); writer.abort(new Error('Response too large')); break }
+              await writer.write(value)
+            }
+          } catch (e) {
+            try { writer.abort(e) } catch {}
+          }
+        })()
+
+        return new Response(readable, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: newHeaders,
+        })
+      }
+
+      // 非流式内容
+      const reader = response.body.getReader()
+      let size = 0
+      const chunks = []
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        size += value.byteLength
+        if (size > maxSize) { reader.cancel(); return jsonResponse({ error: 'Response too large' }, 413) }
+        chunks.push(value)
+      }
+      const body = new Uint8Array(size)
+      let offset = 0
+      for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.byteLength }
+      return new Response(body, { status: response.status, statusText: response.statusText, headers: newHeaders })
+    }
+
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: newHeaders,
+    })
+
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      return jsonResponse({ error: 'Request timeout' }, 504)
+    }
+    return jsonResponse({ error: err.message }, 502)
+  }
 }
 
 // ── 工具函数 ──
@@ -241,7 +215,6 @@ function fixContentType(headers, targetUrl) {
   }
 }
 
-// 过滤逐跳头（hop-by-hop headers），避免透传导致问题
 function filterHopByHopHeaders(headers) {
   const hopByHop = [
     'connection', 'keep-alive', 'proxy-authenticate',

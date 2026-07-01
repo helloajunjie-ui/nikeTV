@@ -1,239 +1,80 @@
 <template>
   <div class="relative w-full h-screen bg-black overflow-hidden">
-    <!-- ===== 空状态：首次使用，直接显示预设源 ===== -->
-    <Transition name="empty-state">
-      <div
-        v-if="showEmptyState"
-        class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black px-6"
-      >
-        <div class="mb-6 text-center">
-          <div class="w-16 h-16 mx-auto mb-3 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-            <svg class="w-8 h-8 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <h1 class="text-2xl font-bold text-white tracking-tight">NikoTV</h1>
-          <p class="text-xs text-white/30 mt-1">选择一个直播源开始观看</p>
-        </div>
-
-        <!-- 预设源一键导入 -->
-        <div class="flex flex-wrap justify-center gap-2 max-w-md">
-          <button
-            v-for="src in quickPresets"
-            :key="src.url"
-            class="px-4 py-2.5 bg-white/5 hover:bg-white/15 border border-white/10 rounded-xl text-sm text-white/70 hover:text-white transition-all disabled:opacity-30"
-            :disabled="importingPreset"
-            @click="quickImportPreset(src.url, src.label)"
-          >
-            {{ src.label }}
-          </button>
-        </div>
-
-        <!-- 加载状态 -->
-        <div v-if="importingPreset" class="mt-4 flex items-center gap-2 text-xs text-white/40">
-          <div class="w-3 h-3 border-2 border-white/20 border-t-white/60 rounded-full animate-spin"></div>
-          加载中...
-        </div>
-
-        <!-- 错误提示 -->
-        <div v-if="presetError" class="mt-4 text-xs text-red-400 bg-red-500/10 px-3 py-2 rounded-lg">{{ presetError }}</div>
-
-        <p class="text-xs text-white/20 mt-6">或按 Enter 打开源管理面板</p>
-      </div>
-    </Transition>
-
-    <!-- ===== 加载中 ===== -->
-    <div
-      v-if="loadingChannels"
-      class="absolute inset-0 flex items-center justify-center bg-black"
-    >
-      <div class="w-10 h-10 border-[3px] border-white/10 border-t-white/80 rounded-full animate-spin"></div>
-    </div>
+    <!-- ===== 启动画面 ===== -->
+    <StartupScreen
+      :visible="showStartup"
+      :progress="startupProgress"
+      :status-text="startupStatus"
+    />
 
     <!-- ===== 主播放界面 ===== -->
-    <Transition name="player-enter">
-      <div
-        v-if="showPlayer"
-        class="absolute inset-0"
-      >
-        <!-- 播放器 -->
-        <TVPlayer
-          ref="playerRef"
-          :channel="currentChannel"
-          :brightness="brightness"
-          :volume="volume"
-          @prev="prevChannel"
-          @next="nextChannel"
-          @toggle-hud="toggleHUD"
+    <div
+      v-if="showPlayer"
+      class="absolute inset-0"
+    >
+      <!-- 播放器 -->
+      <TVPlayer
+        ref="playerRef"
+        :channel="currentChannel"
+        :brightness="brightness"
+        :volume="volume"
+        @prev="prevChannel"
+        @next="nextChannel"
+        @toggle-hud="toggleHUD"
+      />
+
+      <!-- ===== HUD 叠加层（电视版） ===== -->
+      <HUDOverlay
+        :visible="showHUD"
+        :channel="currentChannel"
+        :source-label="currentSource?.label || ''"
+        :volume="volume"
+        :current-programme="epgCurrent"
+      />
+
+      <!-- ===== 频道列表（全屏覆盖层） ===== -->
+      <ChannelList
+        v-if="showChannelList"
+        ref="channelListRef"
+        :visible="showChannelList"
+        :channels="channels"
+        :active-index="activeIndex"
+        @select="selectChannel"
+        @close="showChannelList = false"
+      />
+
+      <!-- ===== 源健康面板 ===== -->
+      <Transition name="slide-panel">
+        <SourceHealthPanel
+          v-if="showHealthPanel"
+          :checking="healthChecking"
+          :checked="healthChecked"
+          :total="totalLines"
+          :alive="aliveCount"
+          :dead="deadCount"
+          @check="checkAllSources"
+          @refresh="refreshSource"
+          @close="showHealthPanel = false"
         />
+      </Transition>
 
-        <!-- ===== HUD 叠加层 ===== -->
-        <Transition name="hud-fade">
-          <div
-            v-if="showHUD"
-            class="absolute inset-0 z-30 pointer-events-none"
-            @mouseenter="onHUDMouseEnter"
-            @mouseleave="onHUDMouseLeave"
-          >
-            <!-- 顶部栏 -->
-            <div class="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent pointer-events-auto">
-              <div class="flex items-center justify-between">
-                <!-- 左侧：源信息 + 频道列表 -->
-                <div class="flex items-center gap-3">
-                  <button
-                    class="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
-                    @click="showChannelList = !showChannelList"
-                    title="频道列表"
-                  >
-                    <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-                    </svg>
-                  </button>
+      <!-- ===== EPG 节目表（底部半屏） ===== -->
+      <EPGOverlay
+        v-if="showEPG"
+        :visible="showEPG"
+        :programmes="epgProgrammes"
+        :channel-name="currentChannel?.name || ''"
+        :channel-logo="currentChannel?.logo || ''"
+        epg-source="epg.pw"
+        @close="showEPG = false"
+      />
 
-                  <!-- 源指示器 / 切换器 -->
-                  <div class="flex items-center gap-1.5">
-                    <button
-                      v-for="src in sources"
-                      :key="src.id"
-                      class="px-2 py-1 rounded-md text-xs transition-all"
-                      :class="currentSource?.id === src.id
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 cursor-default'
-                        : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/70 cursor-pointer'"
-                      :title="currentSource?.id === src.id ? '当前源' : `切换到 ${src.label}`"
-                      @click="handleSwitchSource(src.id)"
-                    >
-                      {{ src.label.length > 8 ? src.label.slice(0, 8) + '…' : src.label }}
-                    </button>
-                  </div>
-                </div>
-
-                <!-- 右侧：工具按钮 -->
-                <div class="flex items-center gap-2">
-                  <!-- IPv6 指示 -->
-                  <div
-                    v-if="ipv6Supported !== null"
-                    class="px-2 py-1 rounded-md text-xs"
-                    :class="ipv6Supported ? 'bg-blue-500/20 text-blue-300' : 'bg-white/5 text-white/30'"
-                    :title="ipv6Supported ? 'IPv6 可用' : 'IPv6 不可用'"
-                  >
-                    {{ ipv6Supported ? 'IPv6' : 'IPv4' }}
-                  </div>
-
-                  <!-- 源健康度 -->
-                  <button
-                    class="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors relative"
-                    @click="showHealthPanel = !showHealthPanel"
-                    title="源健康度"
-                  >
-                    <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span
-                      v-if="healthChecked > 0 && !healthChecking"
-                      class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full"
-                      :class="aliveRate >= 0.7 ? 'bg-emerald-500' : aliveRate >= 0.3 ? 'bg-amber-500' : 'bg-red-500'"
-                    ></span>
-                  </button>
-
-                  <!-- EPG 节目表 -->
-                  <button
-                    class="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
-                    @click="showEPG = !showEPG"
-                    title="节目表"
-                  >
-                    <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                  </button>
-
-                  <!-- PiP 画中画 -->
-                  <button
-                    class="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
-                    @click="togglePiP"
-                    title="画中画"
-                  >
-                    <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14 14h4v4h-4z" />
-                    </svg>
-                  </button>
-
-                  <!-- 导入源 -->
-                  <button
-                    class="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
-                    @click="showImport = true"
-                    title="导入源"
-                  >
-                    <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Transition>
-
-        <!-- ===== 左侧悬停热区（鼠标用户触发频道列表） ===== -->
-        <!-- 注意：只负责触发显示，不负责关闭。
-             如果加 mouseleave 关闭，ChannelList 渲染后会覆盖热区触发 mouseleave，
-             导致 showChannelList 被置 false → ChannelList 销毁 → 热区暴露 → mouseenter 再次触发，
-             形成闪烁循环。关闭由 ChannelList 的 @close 或 Escape 键处理。 -->
-        <div
-          class="absolute left-0 top-0 bottom-0 z-20 w-1 hover:w-4 cursor-pointer transition-all duration-150 group"
-          @mouseenter="showChannelList = true"
-        >
-          <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-12 bg-white/10 rounded-r-md group-hover:bg-white/20 transition-colors"></div>
-        </div>
-
-        <!-- ===== 右侧悬停热区（鼠标用户触发 HUD 换源） ===== -->
-        <!-- 鼠标移到右侧边缘显示 HUD 顶部工具栏，让用户能看到并点击源切换按钮 -->
-        <div
-          class="absolute right-0 top-0 bottom-0 z-20 w-1 hover:w-4 cursor-pointer transition-all duration-150 group"
-          @mouseenter="showHUDForAWhile()"
-        >
-          <div class="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-12 bg-white/10 rounded-l-md group-hover:bg-white/20 transition-colors"></div>
-        </div>
-
-        <!-- ===== 频道列表侧栏（左侧，按分组展示） ===== -->
-        <ChannelList
-          v-if="showChannelList"
-          :visible="showChannelList"
-          :channels="channels"
-          :active-index="activeIndex"
-          @select="selectChannel"
-          @close="showChannelList = false"
-        />
-
-        <!-- ===== 源健康面板 ===== -->
-        <Transition name="slide-panel">
-          <SourceHealthPanel
-            v-if="showHealthPanel"
-            :checking="healthChecking"
-            :checked="healthChecked"
-            :total="totalLines"
-            :alive="aliveCount"
-            :dead="deadCount"
-            @check="checkAllSources"
-            @refresh="refreshSource"
-            @close="showHealthPanel = false"
-          />
-        </Transition>
-
-        <!-- ===== EPG 节目表（左侧面板） ===== -->
-        <Transition name="epg-slide">
-          <EPGOverlay
-            v-if="showEPG"
-            :visible="showEPG"
-            :programmes="epgProgrammes"
-            :channel-name="currentChannel?.name || ''"
-            epg-source="epg.pw"
-            @close="showEPG = false"
-          />
-        </Transition>
-      </div>
-    </Transition>
+      <!-- ===== 数字键输入指示器 ===== -->
+      <ChannelNumberInput
+        :visible="showDigitInput"
+        :digits="digitBuffer"
+      />
+    </div>
 
     <!-- ===== 导入面板（Teleport 到 body） ===== -->
     <ImportSheet
@@ -250,18 +91,22 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue'
 import TVPlayer from './components/TVPlayer.vue'
 import ChannelList from './components/ChannelList.vue'
 import ImportSheet from './components/ImportSheet.vue'
 import EPGOverlay from './components/EPGOverlay.vue'
 import SourceHealthPanel from './components/SourceHealthPanel.vue'
+import StartupScreen from './components/StartupScreen.vue'
+import HUDOverlay from './components/HUDOverlay.vue'
+import ChannelNumberInput from './components/ChannelNumberInput.vue'
 import { useChannelStore } from './composables/useChannelStore.js'
-import { useGesture } from './composables/useGesture.js'
+import { useTVControls } from './composables/useTVControls.js'
+import { useTVNavigation } from './composables/useTVNavigation.js'
 import { parseEPG, getCurrentProgramme, buildEpgIndex, findProgrammes } from './utils/epgParser.js'
 import { refreshFromUpstream } from './utils/sourceManager.js'
 import { parseM3U, loadM3USource } from './utils/m3uParser.js'
-import { startAutoUpdate as startUpstreamUpdate } from './utils/sourceUpdater.js'
+import { startAutoUpdate as startUpstreamUpdate, matchRepo, fetchLatestSource } from './utils/sourceUpdater.js'
 import { startAutoUpdate as startSourceUpdate } from './composables/useSourceUpdater.js'
 import { getPresetChannels } from './utils/presetCache.js'
 import { getProxyUrl } from './utils/proxyUrl.js'
@@ -292,6 +137,12 @@ const showChannelList = ref(false)
 const showHUD = ref(false)
 const showHealthPanel = ref(false)
 const showEPG = ref(false)
+const showDigitInput = ref(false)
+
+// ===== 启动画面 =====
+const showStartup = ref(true)
+const startupProgress = ref(0)
+const startupStatus = ref('正在初始化...')
 
 // ===== 源健康度（懒加载模式：不再批量测活） =====
 // 架构决策：不再在客户端做大规模并发 HEAD 测活。
@@ -334,20 +185,99 @@ function matchRepoForUpdate(url) {
 // ===== IPv6 =====
 const ipv6Supported = ref(null)
 
-// ===== 手势控制 =====
-// 键盘映射：上下切台，左右音量
-// 触摸：左侧上下=亮度，右侧上下=音量，左右滑=切台
-const { brightness, volume } = useGesture({
+// ===== 电视遥控器控制（替代 useGesture） =====
+const channelListRef = ref(null)
+
+const {
+  volume,
+  brightness,
+  interactionMode,
+  digitBuffer,
+  setMode,
+  clearDigitBuffer,
+} = useTVControls({
+  // 频道控制
+  onPrevChannel: () => prevChannel(),
+  onNextChannel: () => nextChannel(),
+  // 音量控制
+  onVolumeUp: () => { /* volume 由 useTVControls 内部管理 */ },
+  onVolumeDown: () => { /* volume 由 useTVControls 内部管理 */ },
+  // 焦点导航（委托给 ChannelList）
+  onFocusPrev: () => channelListRef.value?.focusPrev?.(),
+  onFocusNext: () => channelListRef.value?.focusNext?.(),
+  onFocusLeft: () => channelListRef.value?.prevGroup?.(),
+  onFocusRight: () => channelListRef.value?.nextGroup?.(),
+  // Enter / Back
+  onEnter: () => {
+    if (showChannelList.value) {
+      // 频道列表中确认选择
+      const idx = channelListRef.value?.focusIndex
+      if (typeof idx === 'number' && idx >= 0) {
+        selectChannel(idx)
+      }
+    } else if (showEPG.value) {
+      // EPG 中关闭
+      showEPG.value = false
+    } else {
+      toggleHUD()
+    }
+  },
+  onBack: () => {
+    if (showChannelList.value) {
+      showChannelList.value = false
+      setMode('default')
+    } else if (showEPG.value) {
+      showEPG.value = false
+      setMode('default')
+    } else if (showHealthPanel.value) {
+      showHealthPanel.value = false
+    } else if (showImport.value) {
+      showImport.value = false
+    } else {
+      toggleHUD()
+    }
+  },
+  // 分组切换（频道列表模式）
+  onPrevGroup: () => channelListRef.value?.prevGroup?.(),
+  onNextGroup: () => channelListRef.value?.nextGroup?.(),
+  // 数字键
+  onDigit: (digits) => {
+    showDigitInput.value = true
+    if (digits.length === 3) {
+      jumpToChannel(parseInt(digits, 10))
+    }
+  },
+  // 触摸手势
   onSwipeLeft: () => nextChannel(),
   onSwipeRight: () => prevChannel(),
   onSwipeUp: () => prevChannel(),
   onSwipeDown: () => nextChannel(),
 })
 
+// ===== 数字键跳转 =====
+function jumpToChannel(num) {
+  if (num <= 0 || num > channels.value.length) {
+    // 超出范围，忽略
+    clearDigitBuffer()
+    showDigitInput.value = false
+    return
+  }
+  switchTo(num - 1) // 频道号从 1 开始，索引从 0 开始
+  clearDigitBuffer()
+  showDigitInput.value = false
+}
+
+// 监听数字键输入完成
+watch(digitBuffer, (val) => {
+  if (val.length === 3) {
+    // 已通过 onDigit 回调处理
+  } else if (val.length === 0) {
+    showDigitInput.value = false
+  }
+})
+
 // ===== 过渡控制 =====
-const showEmptyState = ref(true)
 const showPlayer = ref(false)
-const transitioning = ref(false)
 
 // ===== 空状态一键导入 =====
 // 从 presets.js 共享配置中取前 7 个常用源（避免与 ImportSheet.vue 重复定义）
@@ -388,21 +318,23 @@ function handleSwitchSource(sourceId) {
 
 const hasChannels = computed(() => channels.value.length > 0)
 
-// 监听频道变化，触发转场
+// 监听频道变化，控制启动画面
 watch(hasChannels, (val) => {
-  if (val && showEmptyState.value) {
-    transitioning.value = true
+  if (val && showStartup.value) {
+    // 频道加载完成，启动画面进度推进
+    startupProgress.value = 100
+    startupStatus.value = '加载完成'
+    // 短暂延迟后隐藏启动画面，显示播放器
     setTimeout(() => {
-      showEmptyState.value = false
-      setTimeout(() => {
-        showPlayer.value = true
-        transitioning.value = false
-      }, 50)
-    }, 250)
+      showStartup.value = false
+      showPlayer.value = true
+    }, 500)
   } else if (!val && showPlayer.value) {
     showPlayer.value = false
     setTimeout(() => {
-      showEmptyState.value = true
+      showStartup.value = true
+      startupProgress.value = 0
+      startupStatus.value = '正在初始化...'
     }, 300)
   }
 }, { immediate: true })
@@ -411,6 +343,7 @@ watch(hasChannels, (val) => {
 function selectChannel(index) {
   switchTo(index)
   showChannelList.value = false
+  setMode('default')
 }
 
 // ===== 多源导入（追加模式） =====
@@ -419,17 +352,7 @@ async function handleImport(list, sourceMeta) {
   showImport.value = false
 
   if (result && result.added > 0) {
-    // 强制触发转场：从空状态切换到播放器
-    if (showEmptyState.value) {
-      transitioning.value = true
-      setTimeout(() => {
-        showEmptyState.value = false
-        setTimeout(() => {
-          showPlayer.value = true
-          transitioning.value = false
-        }, 50)
-      }, 250)
-    }
+    // 启动画面已由 watch(hasChannels) 处理
     // 同步频道列表给 SW（后台健康检测用）
     setTimeout(() => syncChannelsToSW(), 300)
     // 批量测活已禁用（checkAllSources 现在是空函数）
@@ -685,55 +608,36 @@ function toggleHUD() {
   }
 }
 
-// 鼠标悬停触发 HUD 显示（右侧热区），5秒后自动隐藏
-function showHUDForAWhile() {
-  showHUD.value = true
-  clearTimeout(hudTimer)
-  hudTimer = setTimeout(() => {
-    showHUD.value = false
-  }, 5000)
-}
-
-// 鼠标移入 HUD 区域时重置自动隐藏计时器
-function onHUDMouseEnter() {
-  clearTimeout(hudTimer)
-}
-
-// 鼠标移出 HUD 区域时重新启动自动隐藏计时器
-function onHUDMouseLeave() {
-  clearTimeout(hudTimer)
-  hudTimer = setTimeout(() => {
-    showHUD.value = false
-  }, 3000)
-}
-
-// ===== 键盘快捷键 =====
+// ===== 键盘快捷键（已委托给 useTVControls） =====
+// 键盘事件已由 useTVControls 统一管理，此处仅保留备用入口
 function onKeyDown(e) {
+  // 仅处理 useTVControls 未覆盖的按键
   switch (e.key) {
-    case 'Enter':
-    case ' ':
-      e.preventDefault()
-      if (showEmptyState.value) {
-        // 空状态下 Enter 打开源管理面板
-        showImport.value = true
-      } else {
-        toggleHUD()
-      }
+    case 'i':
+    case 'I':
+      // I 键打开导入面板
+      showImport.value = !showImport.value
       break
-    case 'Escape':
-      showChannelList.value = false
-      showImport.value = false
-      showHealthPanel.value = false
+    case 'h':
+    case 'H':
+      // H 键切换健康面板
+      showHealthPanel.value = !showHealthPanel.value
       break
   }
 }
 
 // ===== 生命周期 =====
 onMounted(async () => {
+  // 启动画面进度：开始加载频道
+  startupProgress.value = 10
+  startupStatus.value = '正在加载频道列表...'
+
   await loadChannels()
 
   // 首次使用：自动导入默认源（本地精选，零网络延迟 + 频道最全）
   if (channels.value.length === 0) {
+    startupProgress.value = 30
+    startupStatus.value = '正在导入默认源...'
     const defaultUrl = '/iptv4.m3u'
     const defaultLabel = '🇨🇳 央视·卫视·地方 聚合'
     try {
@@ -747,6 +651,9 @@ onMounted(async () => {
       console.warn('默认源加载失败:', e.message)
     }
   }
+
+  startupProgress.value = 50
+  startupStatus.value = '正在加载 EPG 节目表...'
 
   // IPv6 支持检测改为惰性加载——只在用户导入 IPv6 源时触发
   // 避免启动时请求不可达服务导致控制台网络错误
@@ -803,6 +710,9 @@ onMounted(async () => {
     }
   }
 
+  startupProgress.value = 70
+  startupStatus.value = '正在初始化服务...'
+
   // 如果有频道，同步给 SW 并后台检测健康度
   if (channels.value.length > 0) {
     // 等待 SW 激活
@@ -821,6 +731,9 @@ onMounted(async () => {
 
   // EPG 每分钟刷新
   epgTimer = setInterval(updateEPG, 60000)
+
+  startupProgress.value = 85
+  startupStatus.value = '正在启动自动更新...'
 
   // 启动上游源自动更新检测
   // 每 30 分钟检查一次所有上游仓库是否有新 commit
@@ -909,59 +822,13 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-/* ===== 空状态过渡 ===== */
-.empty-state-enter-active {
-  animation: fadeIn 0.3s ease-out;
-}
-.empty-state-leave-active {
-  animation: fadeOutScale 0.25s ease-in forwards;
-}
-@keyframes fadeOutScale {
-  from { opacity: 1; transform: scale(1); }
-  to { opacity: 0; transform: scale(0.95); }
-}
-
-/* ===== 播放器进入过渡 ===== */
-.player-enter-enter-active {
-  animation: playerIn 0.35s ease-out;
-}
-.player-enter-leave-active {
-  animation: playerOut 0.2s ease-in forwards;
-}
-@keyframes playerIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@keyframes playerOut {
-  from { opacity: 1; transform: translateY(0); }
-  to { opacity: 0; transform: translateY(20px); }
-}
-
-/* ===== HUD 淡入淡出 ===== */
-.hud-fade-enter-active { transition: opacity 0.2s ease-out; }
-.hud-fade-leave-active { transition: opacity 0.3s ease-in; }
-.hud-fade-enter-from,
-.hud-fade-leave-to { opacity: 0; }
-
-/* ===== 侧栏滑入 ===== */
+/* ===== 侧栏滑入（ImportSheet / SourceHealthPanel） ===== */
 .slide-panel-enter-active { transition: transform 0.25s ease-out, opacity 0.25s ease-out; }
 .slide-panel-leave-active { transition: transform 0.2s ease-in, opacity 0.2s ease-in; }
 .slide-panel-enter-from { transform: translateX(-100%); opacity: 0; }
 .slide-panel-leave-to { transform: translateX(-100%); opacity: 0; }
 
-/* ===== EPG 滑入 ===== */
-.epg-slide-enter-active { animation: epgIn 0.3s ease-out; }
-.epg-slide-leave-active { animation: epgOut 0.2s ease-in; }
-@keyframes epgIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@keyframes epgOut {
-  from { opacity: 1; transform: translateY(0); }
-  to { opacity: 0; transform: translateY(10px); }
-}
-
-/* ===== 通用 ===== */
+/* ===== 通用动画 ===== */
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }

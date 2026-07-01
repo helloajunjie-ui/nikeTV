@@ -13,11 +13,14 @@ html, body {
   overflow: hidden;
   background: #000;
   color: #fff;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  /* TV 优化字体：大字号场景下 PingFang SC 更清晰 */
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   user-select: none;
   -webkit-user-select: none;
+  /* 防止电视上文字模糊 */
+  text-rendering: optimizeLegibility;
 }
 
 /* ===== 视频容器 ===== */
@@ -31,27 +34,85 @@ video::-webkit-media-controls-enclosure {
 
 /* ===== 滚动条（频道列表） ===== */
 ::-webkit-scrollbar {
-  width: 4px;
+  width: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
-/* ===== 焦点样式（电视遥控器） ===== */
+/* ===== TV 焦点样式（遥控器导航） ===== */
 *:focus {
   outline: none;
 }
 
-.focus-ring:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.8);
-  outline-offset: -2px;
+/* useTVNavigation 动态添加的焦点类 */
+.tv-focus {
+  outline: 3px solid rgba(255, 255, 255, 0.6) !important;
+  outline-offset: 2px;
+  transition: outline-color 0.15s ease;
 }
 
-/* ===== 动画 ===== */
+/* 聚焦时轻微放大效果 */
+.tv-focus {
+  transform: scale(1.02);
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ===== TV 过渡动画 ===== */
+/* 淡入淡出（HUD、面板通用） */
+.tv-fade-enter-active {
+  transition: opacity 0.25s ease-out;
+}
+.tv-fade-leave-active {
+  transition: opacity 0.2s ease-in;
+}
+.tv-fade-enter-from,
+.tv-fade-leave-to {
+  opacity: 0;
+}
+
+/* 从底部滑入（EPG、频道列表） */
+.tv-slide-up-enter-active {
+  animation: tvSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.tv-slide-up-leave-active {
+  animation: tvSlideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes tvSlideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes tvSlideDown {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(100%); opacity: 0; }
+}
+
+/* 缩放进入（频道切换指示器） */
+.tv-scale-enter-active {
+  animation: tvScaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.tv-scale-leave-active {
+  animation: tvScaleOut 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes tvScaleIn {
+  from { transform: scale(0.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes tvScaleOut {
+  from { transform: scale(1); opacity: 1; }
+  to { transform: scale(1.1); opacity: 0; }
+}
+
+/* ===== 动画工具类 ===== */
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }

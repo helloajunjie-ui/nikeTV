@@ -1,138 +1,128 @@
 <template>
-  <Transition name="sidebar">
+  <Transition name="channel-list">
     <div
       v-if="visible"
-      class="absolute left-0 top-0 bottom-0 z-40 flex flex-col"
-      style="width: min(420px, 45vw); background: linear-gradient(135deg, rgba(8,8,18,0.75) 0%, rgba(12,12,28,0.7) 100%); backdrop-filter: blur(32px); border-right: 1px solid rgba(255,255,255,0.06);"
+      class="absolute inset-0 z-40 flex flex-col"
+      style="background: rgba(0,0,0,0.85); backdrop-filter: blur(24px);"
     >
-      <!-- 头部 -->
-      <div class="flex items-center justify-between px-6 py-5 border-b border-white/[0.04] flex-shrink-0">
-        <div class="flex items-center gap-4">
-          <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/25 to-purple-600/25 flex items-center justify-center">
-            <svg class="w-6 h-6 text-indigo-300/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-            </svg>
-          </div>
-          <div>
-            <h2 class="text-3xl font-semibold text-white/90 tracking-wide">频道列表</h2>
-            <p class="text-base text-white/30 mt-1">{{ channels.length }} 个频道</p>
-          </div>
-        </div>
-        <button
-          class="w-12 h-12 rounded-xl flex items-center justify-center text-white/20 hover:text-white/60 hover:bg-white/5 transition-all duration-200"
-          @click="$emit('close')"
-        >
-          <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-
-      <!-- 搜索 -->
-      <div class="px-5 pt-3 pb-3 flex-shrink-0">
-        <div class="relative">
-          <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="搜索频道..."
-            class="w-full pl-14 pr-5 py-4 bg-white/[0.05] border border-white/[0.08] rounded-xl text-xl text-white/80 placeholder-white/25 focus:outline-none focus:border-white/25 focus:bg-white/[0.07] transition-all duration-200"
-            @keydown.escape="$emit('close')"
-          />
-        </div>
-      </div>
-
-      <!-- 按分组展示频道 -->
-      <div class="flex-1 overflow-y-auto pb-4 scrollbar-thin">
-        <template v-for="group in groupedChannels" :key="group.name">
-          <!-- 分组标题 -->
-          <div
-            v-if="group.channels.length > 0"
-            class="flex items-center gap-3 px-6 pt-6 pb-2"
+      <!-- ===== 顶部：分组标签栏 ===== -->
+      <div class="flex-shrink-0 px-8 pt-6 pb-4">
+        <div class="flex items-center gap-2 overflow-x-auto scrollbar-none">
+          <button
+            v-for="(group, gi) in groups"
+            :key="group.name"
+            :ref="gi === activeGroupIndex ? 'groupRef' : undefined"
+            class="tv-focusable px-6 py-3 rounded-2xl text-2xl font-medium transition-all duration-200 flex-shrink-0"
+            :class="gi === activeGroupIndex
+              ? 'bg-white/15 text-white shadow-lg'
+              : 'text-white/40 hover:text-white/70 hover:bg-white/5'"
+            @click="selectGroup(gi)"
           >
-            <div class="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400/50 to-purple-500/50"></div>
-            <span class="text-lg font-semibold text-white/35 tracking-widest uppercase">{{ group.name || '未分类' }}</span>
-            <span class="text-base text-white/20 ml-auto">{{ group.channels.length }}</span>
-          </div>
+            {{ group.name }}
+            <span class="ml-2 text-lg text-white/30">({{ group.channels.length }})</span>
+          </button>
+        </div>
+        <!-- 分组提示 -->
+        <div class="flex items-center gap-2 mt-3 text-lg text-white/20">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16l-4-4m0 0l4-4m-4 4h18" />
+          </svg>
+          <span>切换分组</span>
+          <svg class="w-5 h-5 ml-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+          </svg>
+          <span>切换分组</span>
+        </div>
+      </div>
 
-          <!-- 该分组的频道 -->
-          <div v-for="(ch, i) in group.channels" :key="ch._key || i" class="px-3">
-            <button
-              :ref="el => { if (ch._index === activeIndex) activeItemRef.value = el }"
-              class="w-full flex items-center gap-5 px-5 py-5 rounded-2xl transition-all duration-200 group/ch"
-              :class="ch._index === activeIndex
-                ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/12 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
-                : 'text-white/55 hover:bg-white/[0.04] hover:text-white/85'"
-              @click="$emit('select', ch._index)"
-            >
-              <!-- 频道 Logo / 序号 -->
-              <div
-                class="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center text-xl font-bold tracking-wide"
-                :class="ch._index === activeIndex
-                  ? 'bg-indigo-500/20 text-indigo-300/80'
-                  : 'bg-white/[0.05] text-white/25 group-hover/ch:bg-white/[0.08]'"
-              >
-                <img
-                  v-if="ch.logo"
-                  :src="ch.logo"
-                  class="w-full h-full object-contain"
-                  alt=""
-                  @error="($event.target.style.display = 'none')"
-                />
-                <span v-else>{{ ch.name.charAt(0) }}</span>
-              </div>
+      <!-- ===== 频道列表 ===== -->
+      <div class="flex-1 overflow-y-auto px-6 pb-6 scrollbar-thin">
+        <div class="grid grid-cols-1 gap-2 max-w-4xl mx-auto">
+          <button
+            v-for="(ch, ci) in currentGroupChannels"
+            :key="ch._key || ci"
+            :ref="ci === focusIndex ? 'channelRef' : undefined"
+            class="tv-focusable group flex items-center gap-5 px-6 py-4 rounded-2xl transition-all duration-200"
+            :class="[
+              ch._index === activeIndex
+                ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/10 border border-white/10'
+                : 'hover:bg-white/[0.04] border border-transparent',
+              ci === focusIndex ? 'ring-2 ring-white/40 ring-offset-2 ring-offset-transparent' : '',
+            ]"
+            @click="selectChannel(ch._index)"
+          >
+            <!-- 台标 -->
+            <div class="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center bg-white/5">
+              <img
+                v-if="ch.logo"
+                :src="ch.logo"
+                class="w-full h-full object-contain"
+                alt=""
+                loading="lazy"
+                @error="($event.target.style.display = 'none')"
+              />
+              <span v-else class="text-2xl font-bold text-white/30">{{ ch.name.charAt(0) }}</span>
+            </div>
 
-              <!-- 频道名称 -->
-              <div class="flex-1 min-w-0 text-left">
-                <p
-                  class="text-xl truncate transition-all duration-200"
-                  :class="ch._index === activeIndex ? 'font-semibold text-white' : 'font-medium'"
-                >{{ ch.name }}</p>
+            <!-- 频道信息 -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-3">
+                <span
+                  class="text-3xl font-medium truncate"
+                  :class="ch._index === activeIndex ? 'text-white' : 'text-white/70 group-hover:text-white/90'"
+                >{{ ch.name }}</span>
+                <!-- 当前播放标签 -->
+                <span
+                  v-if="ch._index === activeIndex"
+                  class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-lg"
+                >
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  直播
+                </span>
               </div>
+              <!-- 线路信息 -->
+              <div v-if="ch.urls && ch.urls.length > 1" class="text-xl text-white/30 mt-1">
+                {{ ch.urls.length }} 条线路
+              </div>
+            </div>
 
-              <!-- 当前播放指示 -->
-              <div
-                v-if="ch._index === activeIndex"
-                class="flex items-center gap-2"
-              >
-                <span class="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse"></span>
-                <span class="text-base text-indigo-300/60 font-semibold">直播</span>
-              </div>
-            </button>
-          </div>
-        </template>
+            <!-- 频道号（如果有） -->
+            <div v-if="ch.channelNumber" class="text-2xl text-white/20 font-mono">
+              {{ ch.channelNumber }}
+            </div>
+          </button>
+        </div>
 
         <!-- 空状态 -->
         <div
-          v-if="filteredChannels.length === 0"
+          v-if="currentGroupChannels.length === 0"
           class="flex flex-col items-center justify-center py-20 text-white/20"
         >
-          <div class="w-20 h-20 rounded-2xl bg-white/[0.03] flex items-center justify-center mb-4">
-            <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          <div class="w-24 h-24 rounded-2xl bg-white/[0.03] flex items-center justify-center mb-4">
+            <svg class="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
           </div>
-          <p class="text-xl text-white/30">未找到匹配频道</p>
-          <button
-            class="mt-3 text-base text-white/20 hover:text-white/50 transition-colors"
-            @click="searchQuery = ''"
-          >清除搜索</button>
+          <p class="text-2xl text-white/30">该分组暂无频道</p>
         </div>
       </div>
 
-      <!-- 底部装饰 -->
-      <div class="h-px bg-gradient-to-r from-transparent via-white/[0.04] to-transparent mx-6 flex-shrink-0"></div>
-      <div class="px-6 py-4 flex items-center gap-2 flex-shrink-0">
-        <div class="flex -space-x-1">
-          <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-600/20 border border-white/[0.04] flex items-center justify-center">
-            <svg class="w-4 h-4 text-indigo-300/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
+      <!-- ===== 底部提示 ===== -->
+      <div class="flex-shrink-0 px-8 py-4 border-t border-white/[0.04]">
+        <div class="flex items-center justify-center gap-6 text-lg text-white/20">
+          <span class="flex items-center gap-2">
+            <kbd>↑↓</kbd> 选择
+          </span>
+          <span class="flex items-center gap-2">
+            <kbd>←→</kbd> 分组
+          </span>
+          <span class="flex items-center gap-2">
+            <kbd>Enter</kbd> 播放
+          </span>
+          <span class="flex items-center gap-2">
+            <kbd>Back</kbd> 关闭
+          </span>
         </div>
-        <span class="text-base text-white/15">NikoTV · 频道导航</span>
       </div>
     </div>
   </Transition>
@@ -147,66 +137,122 @@ const props = defineProps({
   activeIndex: { type: Number, default: 0 },
 })
 
-const emit = defineEmits(['select', 'close'])
+const emit = defineEmits(['select', 'close', 'prev-group', 'next-group'])
 
-const searchQuery = ref('')
-const activeItemRef = ref(null)
+// ===== 分组管理 =====
+const activeGroupIndex = ref(0)
+const focusIndex = ref(0)
 
-// 搜索过滤
-const filteredChannels = computed(() => {
-  if (!searchQuery.value) return props.channels
-  const q = searchQuery.value.toLowerCase()
-  return props.channels.filter(ch =>
-    ch.name.toLowerCase().includes(q) ||
-    (ch.group && ch.group.toLowerCase().includes(q))
-  )
-})
-
-// 按 group 分组，保留原始索引
-const groupedChannels = computed(() => {
+// 按 group 分组
+const groups = computed(() => {
   const map = new Map()
-  const list = filteredChannels.value
-  const fullList = props.channels
-  for (const ch of list) {
-    // 聚合模式：用 id（tvgId || name 小写去空格）定位原始索引
-    const originalIndex = fullList.findIndex(c => c.id === ch.id)
+  for (const ch of props.channels) {
     const group = ch.group || '未分类'
     if (!map.has(group)) map.set(group, [])
-    map.get(group).push({ ...ch, _index: originalIndex >= 0 ? originalIndex : 0, _key: `${group}-${ch.id}` })
+    map.get(group).push({ ...ch, _key: `${group}-${ch.id}` })
   }
   return Array.from(map.entries()).map(([name, channels]) => ({ name, channels }))
 })
 
-// 打开时自动聚焦当前频道
+// 当前分组频道列表
+const currentGroupChannels = computed(() => {
+  if (groups.value.length === 0) return []
+  return groups.value[activeGroupIndex.value]?.channels || []
+})
+
+// ===== 分组切换 =====
+function selectGroup(index) {
+  if (index < 0 || index >= groups.value.length) return
+  activeGroupIndex.value = index
+  focusIndex.value = 0
+}
+
+function prevGroup() {
+  if (activeGroupIndex.value > 0) {
+    selectGroup(activeGroupIndex.value - 1)
+  }
+}
+
+function nextGroup() {
+  if (activeGroupIndex.value < groups.value.length - 1) {
+    selectGroup(activeGroupIndex.value + 1)
+  }
+}
+
+// ===== 焦点导航 =====
+function focusNext() {
+  if (focusIndex.value < currentGroupChannels.value.length - 1) {
+    focusIndex.value++
+    scrollToFocus()
+  }
+}
+
+function focusPrev() {
+  if (focusIndex.value > 0) {
+    focusIndex.value--
+    scrollToFocus()
+  }
+}
+
+function scrollToFocus() {
+  nextTick(() => {
+    const el = document.querySelector('[tv-focused]')
+    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  })
+}
+
+// ===== 选择频道 =====
+function selectChannel(index) {
+  emit('select', index)
+}
+
+// ===== 打开时重置焦点 =====
 watch(() => props.visible, async (val) => {
   if (val) {
-    searchQuery.value = ''
+    activeGroupIndex.value = 0
+    focusIndex.value = 0
+    // 找到当前频道所在分组
+    const activeCh = props.channels[props.activeIndex]
+    if (activeCh?.group) {
+      const gi = groups.value.findIndex(g => g.name === activeCh.group)
+      if (gi >= 0) activeGroupIndex.value = gi
+    }
     await nextTick()
-    setTimeout(() => {
-      activeItemRef.value?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-    }, 100)
+    scrollToFocus()
   }
+})
+
+// 暴露给父组件用于焦点导航
+defineExpose({
+  focusNext,
+  focusPrev,
+  prevGroup,
+  nextGroup,
+  selectGroup,
+  activeGroupIndex,
+  focusIndex,
+  groups,
 })
 </script>
 
 <style scoped>
-.sidebar-enter-active {
-  animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+/* ===== 列表进入/离开动画 ===== */
+.channel-list-enter-active {
+  animation: listIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.sidebar-leave-active {
-  animation: slideOut 0.25s cubic-bezier(0.4, 0, 0.6, 1);
+.channel-list-leave-active {
+  animation: listOut 0.2s ease-in;
+}
+@keyframes listIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes listOut {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.98); }
 }
 
-@keyframes slideIn {
-  from { transform: translateX(-100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-@keyframes slideOut {
-  from { transform: translateX(0); opacity: 1; }
-  to { transform: translateX(-100%); opacity: 0; }
-}
-
-/* 自定义滚动条 */
+/* ===== 滚动条 ===== */
 .scrollbar-thin::-webkit-scrollbar {
   width: 4px;
 }
@@ -217,7 +263,23 @@ watch(() => props.visible, async (val) => {
   background: rgba(255,255,255,0.06);
   border-radius: 99px;
 }
-.scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(255,255,255,0.12);
+
+/* ===== 隐藏分组滚动条 ===== */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ===== kbd 样式 ===== */
+kbd {
+  font-family: inherit;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.4);
+  font-size: 0.9em;
 }
 </style>

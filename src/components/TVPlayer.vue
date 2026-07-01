@@ -13,50 +13,67 @@
       autoplay
     ></video>
 
-    <!-- 加载状态（含实时网速 + 进度条） -->
-    <div v-if="loading" class="absolute inset-0 flex items-center justify-center">
-      <div class="flex flex-col items-center gap-4">
-        <!-- 旋转动画 -->
-        <div class="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin"></div>
-        <!-- 加载文本 + 网速 -->
-        <div class="flex flex-col items-center gap-1">
-          <span class="text-white/40 text-sm">{{ loadingText }}</span>
-          <span v-if="downloadSpeed > 0" class="text-white/25 text-xs font-mono">
-            {{ downloadSpeed }} KB/s
-          </span>
-          <span v-else class="text-white/20 text-xs">等待响应...</span>
+    <!-- ===== 加载状态（底部进度条，不遮挡视频） ===== -->
+    <div v-if="loading" class="absolute bottom-0 left-0 right-0 z-40">
+      <!-- 进度条 -->
+      <div class="h-1 bg-white/10">
+        <div
+          class="h-full bg-gradient-to-r from-blue-400/60 to-purple-400/60 transition-all duration-300"
+          :style="{ width: loadingProgress + '%' }"
+        ></div>
+      </div>
+      <!-- 加载信息 -->
+      <div class="flex items-center justify-between px-6 py-3 bg-gradient-to-t from-black/80 to-transparent">
+        <div class="flex items-center gap-3">
+          <div class="w-5 h-5 border-2 border-white/20 border-t-white/60 rounded-full animate-spin"></div>
+          <span class="text-xl text-white/60">{{ loadingText }}</span>
         </div>
-        <!-- 加载进度条 -->
-        <div class="w-40 h-0.5 bg-white/10 rounded-full overflow-hidden">
-          <div
-            class="h-full bg-white/30 rounded-full transition-all duration-300"
-            :style="{ width: loadingProgress + '%' }"
-          ></div>
+        <div class="flex items-center gap-4">
+          <span v-if="downloadSpeed > 0" class="text-xl text-white/30 font-mono">{{ downloadSpeed }} KB/s</span>
+          <span class="text-xl text-white/20 font-mono">{{ elapsedSeconds }}s</span>
         </div>
-        <!-- 已等待时间 -->
-        <span class="text-white/15 text-xs font-mono">{{ elapsedSeconds }}s</span>
       </div>
     </div>
 
-    <!-- 错误提示 -->
-    <div v-if="errorMsg" class="absolute inset-0 flex items-center justify-center">
-      <div class="bg-black/60 backdrop-blur-sm px-6 py-3 rounded-xl text-white/70 text-sm max-w-xs text-center">
-        {{ errorMsg }}
+    <!-- ===== 错误提示（底部横幅，不遮挡视频） ===== -->
+    <Transition name="error-banner">
+      <div v-if="errorMsg" class="absolute bottom-20 left-1/2 -translate-x-1/2 z-40">
+        <div class="flex items-center gap-3 bg-black/70 backdrop-blur-md px-6 py-3 rounded-2xl border border-red-500/20 shadow-2xl">
+          <svg class="w-6 h-6 text-red-400/80 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+          <span class="text-xl text-white/80">{{ errorMsg }}</span>
+        </div>
       </div>
-    </div>
+    </Transition>
 
-    <!-- 频道切换指示器（底部） -->
-    <Transition name="indicator">
-      <div v-if="showChannelIndicator && channel" class="absolute bottom-24 left-1/2 -translate-x-1/2 z-50">
-        <div class="flex items-center gap-4 bg-black/60 backdrop-blur-md rounded-2xl px-6 py-4 border border-white/10 shadow-2xl">
-          <div v-if="channel.logo" class="w-12 h-12 rounded-xl overflow-hidden bg-white/5 flex-shrink-0">
-            <img :src="channel.logo" :alt="channel.name" class="w-full h-full object-contain" loading="lazy" />
+    <!-- ===== 频道切换指示器（全屏居中动画） ===== -->
+    <Transition name="channel-switch">
+      <div v-if="showChannelIndicator && channel" class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
+        <div class="flex flex-col items-center gap-4">
+          <!-- 台标 -->
+          <div class="w-28 h-28 rounded-3xl overflow-hidden bg-white/5 border-2 border-white/10 shadow-2xl shadow-black/50">
+            <img
+              v-if="channel.logo"
+              :src="channel.logo"
+              :alt="channel.name"
+              class="w-full h-full object-contain p-2"
+              loading="lazy"
+              @error="($event.target.style.display = 'none')"
+            />
+            <div v-else class="w-full h-full flex items-center justify-center">
+              <span class="text-5xl font-bold text-white/30">{{ channel.name.charAt(0) }}</span>
+            </div>
           </div>
-          <div class="flex flex-col">
-            <span class="text-white text-2xl font-bold drop-shadow-lg">{{ channel.name }}</span>
-            <span v-if="channel.urls && channel.urls.length > 1" class="text-white/40 text-sm mt-1">
-              {{ channel._activeIdx + 1 }}/{{ channel.urls.length }} 线路
-            </span>
+          <!-- 频道名 -->
+          <div class="text-center">
+            <h2 class="text-5xl font-bold text-white drop-shadow-2xl">{{ channel.name }}</h2>
+            <div class="flex items-center justify-center gap-3 mt-2">
+              <span v-if="channel.group" class="text-2xl text-white/50">{{ channel.group }}</span>
+              <span v-if="channel.urls && channel.urls.length > 1" class="text-2xl text-white/30">
+                线路 {{ (channel._activeIdx || 0) + 1 }}/{{ channel.urls.length }}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -482,18 +499,35 @@ defineExpose({ togglePiP })
   opacity: 0;
 }
 
-.indicator-enter-active {
-  animation: indicatorUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+/* ===== 频道切换动画（全屏居中放大） ===== */
+.channel-switch-enter-active {
+  animation: switchIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.indicator-leave-active {
-  animation: indicatorDown 0.25s ease-in;
+.channel-switch-leave-active {
+  animation: switchOut 0.25s ease-in;
 }
-@keyframes indicatorUp {
-  from { transform: translateX(-50%) translateY(20px); opacity: 0; }
+@keyframes switchIn {
+  from { transform: scale(0.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes switchOut {
+  from { transform: scale(1); opacity: 1; }
+  to { transform: scale(1.1); opacity: 0; }
+}
+
+/* ===== 错误横幅动画 ===== */
+.error-banner-enter-active {
+  animation: bannerIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.error-banner-leave-active {
+  animation: bannerOut 0.2s ease-in;
+}
+@keyframes bannerIn {
+  from { transform: translateX(-50%) translateY(10px); opacity: 0; }
   to { transform: translateX(-50%) translateY(0); opacity: 1; }
 }
-@keyframes indicatorDown {
+@keyframes bannerOut {
   from { transform: translateX(-50%) translateY(0); opacity: 1; }
-  to { transform: translateX(-50%) translateY(20px); opacity: 0; }
+  to { transform: translateX(-50%) translateY(10px); opacity: 0; }
 }
 </style>

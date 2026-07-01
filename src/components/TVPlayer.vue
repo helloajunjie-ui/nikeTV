@@ -72,7 +72,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import Hls from 'hls.js'
-import { getProxiedUrl } from '../utils/proxyUrl.js'
 
 const props = defineProps({
   channel: { type: Object, default: null },
@@ -343,8 +342,10 @@ async function initPlayer() {
     }
   }, LOAD_TIMEOUT)
 
-  // 异步获取代理后的 URL（首次调用会自动检测 Worker 健康状态）
-  const streamUrl = await getProxiedUrl(url)
+  // 视频流直接播放，不走 Worker 代理
+  // IPTV 源多为 HTTP，浏览器 Mixed Content 警告不影响播放
+  // 走代理反而增加延迟、触发 ORB 拦截、被上游封禁数据中心 IP
+  const streamUrl = url
 
   // 原生 HLS 支持（iOS Safari）
   if (video.canPlayType('application/vnd.apple.mpegurl')) {

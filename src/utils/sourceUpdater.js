@@ -179,39 +179,13 @@ export function startAutoUpdate(sourcesRef, onUpdate) {
   }
 }
 
-/**
- * 从 GitHub RAW 拉取最新 M3U 内容
- * @param {string} repo - 仓库名，如 'vbskycn/iptv'
- * @param {string} filePath - 文件路径
- * @param {string} branch - 分支名
- */
-/**
- * 判断当前是否为 Vite 开发环境
- */
-function isDev() {
-  return location.hostname === 'localhost' || location.hostname === '127.0.0.1'
-}
-
-/**
- * 将 GitHub RAW URL 转换为 Vite 代理路径（开发环境）
- */
-function proxyUrl(input) {
-  if (!isDev()) return input
-  if (input.includes('raw.githubusercontent.com')) {
-    const path = input.replace('https://raw.githubusercontent.com', '')
-    return `/m3u-proxy${path}`
-  }
-  return input
-}
-
 export async function fetchLatestSource(repo, filePath, branch = 'master') {
   const rawUrl = `https://raw.githubusercontent.com/${repo}/${branch}/${filePath}`
-  const url = proxyUrl(rawUrl)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 15000)
 
   try {
-    const response = await fetch(url, {
+    const response = await fetch(rawUrl, {
       signal: controller.signal,
       cache: 'no-cache',
     })

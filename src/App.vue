@@ -263,7 +263,7 @@ import { refreshFromUpstream } from './utils/sourceManager.js'
 import { parseM3U, loadM3USource } from './utils/m3uParser.js'
 import { startAutoUpdate, fetchLatestSource, matchRepo } from './utils/sourceUpdater.js'
 import { getPresetChannels } from './utils/presetCache.js'
-import { getProxiedUrl, getProxyUrl } from './utils/proxyUrl.js'
+import { getProxyUrl } from './utils/proxyUrl.js'
 import { presets } from './utils/presets.js'
 
 // ===== 频道状态 =====

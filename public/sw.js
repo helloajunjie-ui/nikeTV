@@ -146,13 +146,14 @@ async function performHealthCheck() {
     return
   }
 
-  // 展平所有线路：{ channelIndex, urlIndex, url }
+  // 展平所有线路：{ channelIndex, urlIndex, url, channelId }
+  // 使用 channelId 而非索引，防止主线程 channels 数组变化导致索引错位
   const flatUrls = []
   for (let ci = 0; ci < channels.length; ci++) {
     const ch = channels[ci]
     if (!ch.urls) continue
     for (let ui = 0; ui < ch.urls.length; ui++) {
-      flatUrls.push({ ci, ui, url: ch.urls[ui].url })
+      flatUrls.push({ ci, ui, url: ch.urls[ui].url, channelId: ch.id })
     }
   }
 
@@ -185,7 +186,7 @@ async function performHealthCheck() {
     results.forEach((result, idx) => {
       const item = batch[idx]
       const alive = result.status === 'fulfilled' && result.value === true
-      batchResults.push({ ci: item.ci, ui: item.ui, alive })
+      batchResults.push({ ci: item.ci, ui: item.ui, channelId: item.channelId, alive })
       if (!alive) {
         deadUrls.push(item.url)
       }

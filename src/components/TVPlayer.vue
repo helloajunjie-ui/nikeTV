@@ -78,6 +78,7 @@ let osdTimer = null
 let indicatorTimer = null
 let unmuteTimer = null
 let errorTimer = null
+let errorMsgTimer = null // showError 的自动清除定时器
 let hls = null
 let errorRetryCount = 0
 const MAX_RETRIES = 2
@@ -188,7 +189,8 @@ function nextLine() {
 // 监听频道切换
 watch(() => props.channel, (newCh, oldCh) => {
   if (newCh?.id !== oldCh?.id) {
-    // 清除旧错误信息
+    // 清除旧错误信息和相关定时器
+    clearTimeout(errorMsgTimer)
     errorMsg.value = ''
     errorRetryCount = 0
     showChannelIndicatorAnimation()
@@ -255,7 +257,8 @@ function onVideoError() {
 
 function showError(msg) {
   errorMsg.value = msg
-  setTimeout(() => { errorMsg.value = '' }, 3000)
+  clearTimeout(errorMsgTimer)
+  errorMsgTimer = setTimeout(() => { errorMsg.value = '' }, 3000)
 }
 
 function initPlayer() {
@@ -368,6 +371,7 @@ onBeforeUnmount(() => {
   clearTimeout(indicatorTimer)
   clearTimeout(unmuteTimer)
   clearTimeout(errorTimer)
+  clearTimeout(errorMsgTimer)
   document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 

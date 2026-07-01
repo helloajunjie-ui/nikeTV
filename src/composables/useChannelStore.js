@@ -45,10 +45,16 @@ export function useChannelStore() {
   // 频道总数
   const totalChannels = computed(() => channels.value.length)
 
-  // 当前频道所属源（取第一个线路的 sourceId）
+  // 当前频道所属源（取当前活跃线路的 sourceId）
   const currentSource = computed(() => {
     const ch = currentChannel.value
     if (!ch || !ch.urls || ch.urls.length === 0) return null
+    const activeIdx = ch._activeIdx ?? 0
+    const activeUrl = ch.urls[activeIdx]
+    if (activeUrl?.sourceId) {
+      return sources.value.find(s => s.id === activeUrl.sourceId) || null
+    }
+    // fallback: 取第一个线路的 sourceId
     return sources.value.find(s => s.id === ch.urls[0].sourceId) || null
   })
 

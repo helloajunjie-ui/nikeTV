@@ -369,12 +369,14 @@ async function quickImportPreset(url, label) {
   }
 }
 
-// ===== 切换源（从侧栏点击已有源） =====
+// ===== 切换源（从 HUD 点击源按钮） =====
 function handleSwitchSource(sourceId) {
   // 找到该源的第一个频道并播放
   const idx = channels.value.findIndex(c => c.urls.some(u => u.sourceId === sourceId))
   if (idx >= 0) {
     switchTo(idx)
+    // 切换源时关闭频道列表，避免视觉不一致
+    showChannelList.value = false
   }
 }
 
@@ -445,7 +447,7 @@ async function checkAllSources() {
   aliveCount.value = 0
   deadCount.value = 0
 
-  // 展平所有线路为 { channelIndex, urlIndex, url } 列表
+  // 展平所有线路为 { ci, ui, url } 列表，保留索引信息
   const flatUrls = []
   for (let ci = 0; ci < channels.value.length; ci++) {
     const ch = channels.value[ci]
@@ -459,26 +461,35 @@ async function checkAllSources() {
   let checked = 0
   let dead = 0
 
-  // 复用 filterAliveChannels 的批量检测逻辑，但传入展平列表
-  // filterAliveChannels 接受 { url } 数组，返回存活项
-  const aliveLines = await filterAliveChannels(
-    flatUrls.map(item => ({ url: item.url })),
-    (c, t, d) => {
-      checked = c
-      dead = d
-      healthChecked.value = c
-      deadCount.value = d
-      aliveCount.value = c - d
+  // 分批并发检测，保留原始 ci/ui 索引
+  const MAX_CONCURRENT = 5
+  const aliveResults = new Set() // 存储 "ci:ui" 字符串
+  for (let i = 0; i < flatUrls.length; i += MAX_CONCURRENT) {
+    const batch = flatUrls.slice(i, i + MAX_CONCURRENT)
+    const batchResults = await Promise.allSettled(
+      batch.map(async (item) => {
+        const alive = await checkSourceHealth(item.url)
+        return { item, alive }
+      })
+    )
+    for (const result of batchResults) {
+      checked++
+      if (result.status === 'fulfilled' && result.value.alive) {
+        aliveResults.add(`${result.value.item.ci}:${result.value.item.ui}`)
+      } else {
+        dead++
+      }
     }
-  )
-
-  const aliveUrlSet = new Set(aliveLines.map(item => item.url))
+    healthChecked.value = checked
+    deadCount.value = dead
+    aliveCount.value = checked - dead
+  }
 
   // 标记每条线路的 alive 状态
   for (const item of flatUrls) {
     const ch = channels.value[item.ci]
     if (ch && ch.urls[item.ui]) {
-      ch.urls[item.ui].alive = aliveUrlSet.has(item.url)
+      ch.urls[item.ui].alive = aliveResults.has(`${item.ci}:${item.ui}`)
     }
   }
 
@@ -673,6 +684,7 @@ function onSWMessage(event) {
 
     case 'BATCH_HEALTH_UPDATE': {
       // SW 批量健康结果更新（替代逐条 CHANNEL_HEALTH_UPDATE）
+      // 使用 channelId 而非索引定位，防止 channels 数组变化导致索引错位
       const { results } = data
       if (!results || !Array.isArray(results)) break
 
@@ -680,7 +692,14 @@ function onSWMessage(event) {
       let dead = 0
 
       for (const item of results) {
-        const ch = channels.value[item.ci]
+        // 优先使用 channelId 定位，fallback 到索引
+        let ch = null
+        if (item.channelId) {
+          ch = channels.value.find(c => c.id === item.channelId)
+        }
+        if (!ch && typeof item.ci === 'number') {
+          ch = channels.value[item.ci]
+        }
         if (ch && ch.urls && ch.urls[item.ui]) {
           ch.urls[item.ui].alive = item.alive
           ch.urls[item.ui]._lastChecked = Date.now()

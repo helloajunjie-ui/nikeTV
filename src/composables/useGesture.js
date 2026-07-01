@@ -20,6 +20,7 @@ export function useGesture({ onSwipeLeft, onSwipeRight, onSwipeUp, onSwipeDown }
   let touchStartTime = 0
   let isTracking = false
   let gestureZone = '' // 'left' | 'right'
+  let isVerticalDrag = false // 标记是否正在进行垂直滑动（亮度/音量调节）
 
   const SWIPE_THRESHOLD = 50
   const SWIPE_TIME_MAX = 300
@@ -35,6 +36,7 @@ export function useGesture({ onSwipeLeft, onSwipeRight, onSwipeUp, onSwipeDown }
     touchStartTime = Date.now()
     gestureZone = getTouchZone(touch.clientX)
     isTracking = true
+    isVerticalDrag = false
   }
 
   function onTouchMove(e) {
@@ -46,6 +48,11 @@ export function useGesture({ onSwipeLeft, onSwipeRight, onSwipeUp, onSwipeDown }
     // 垂直滑动：亮度/音量调节
     if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 10) {
       e.preventDefault()
+      isVerticalDrag = true
+      // 更新基准点，防止手指横向漂移后在 onTouchEnd 中误判为水平 swipe
+      touchStartX = touch.clientX
+      touchStartY = touch.clientY
+      touchStartTime = Date.now()
       const factor = -deltaY / window.innerHeight
 
       if (gestureZone === 'left') {
@@ -61,6 +68,9 @@ export function useGesture({ onSwipeLeft, onSwipeRight, onSwipeUp, onSwipeDown }
   function onTouchEnd(e) {
     if (!isTracking) return
     isTracking = false
+
+    // 如果本次触摸被识别为垂直拖动，跳过水平 swipe 判断
+    if (isVerticalDrag) return
 
     const touch = e.changedTouches[0]
     const deltaX = touch.clientX - touchStartX

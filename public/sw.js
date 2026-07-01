@@ -65,12 +65,20 @@ self.addEventListener('fetch', (event) => {
 // ===== 消息处理：接收频道列表 + 健康检测结果 =====
 const SW_STORE_NAME = 'keyval'
 const SW_CHANNELS_KEY = 'nikotv-channels'
+const SW_GENERATION_KEY = 'nikotv-sw-generation'
+
+// 当前 generation，每次主线程同步频道列表时递增
+let currentGeneration = 0
 
 self.addEventListener('message', (event) => {
   // 接收频道列表（来自主线程的 syncChannelsToSW）
   if (event.data && event.data.type === 'SYNC_CHANNELS') {
     const channels = event.data.channels
     if (!channels || !Array.isArray(channels)) return
+
+    // 递增 generation，使正在进行的后台检测失效
+    currentGeneration++
+    const gen = currentGeneration
 
     // 写入 IndexedDB（与主线程 idb-keyval 的 keyval-store 数据库一致）
     const request = indexedDB.open(SW_STORE_NAME)
@@ -90,6 +98,8 @@ self.addEventListener('message', (event) => {
       const store = tx.objectStore(SW_STORE_NAME)
       // 覆盖写入频道列表（与主线程 idb-keyval 的 set(STORE_KEY, channels) 一致）
       store.put(channels, SW_CHANNELS_KEY)
+      // 同时写入当前 generation
+      store.put(gen, SW_GENERATION_KEY)
       tx.oncomplete = () => {
         db.close()
         // 写入完成后触发后台检测
@@ -126,6 +136,10 @@ async function performHealthCheck() {
   if (isHealthChecking) return
   isHealthChecking = true
 
+  // 记录本次检测开始时的 generation
+  // 如果检测过程中主线程同步了新频道列表（generation 递增），则丢弃本次结果
+  const genAtStart = currentGeneration
+
   const channels = await getAllChannels()
   if (!channels || channels.length === 0) {
     isHealthChecking = false
@@ -142,7 +156,10 @@ async function performHealthCheck() {
     }
   }
 
-  if (flatUrls.length === 0) return
+  if (flatUrls.length === 0) {
+    isHealthChecking = false
+    return
+  }
 
   const TIMEOUT = 5000  // 每个请求超时 5s
   const deadUrls = []
@@ -182,6 +199,17 @@ async function performHealthCheck() {
     } else if (i + actualBatchSize < flatUrls.length) {
       await sleep(1000)
     }
+  }
+
+  // 检查 generation 是否仍然匹配
+  // 如果主线程在此期间同步了新频道列表，则丢弃本次结果避免覆盖
+  if (currentGeneration !== genAtStart) {
+    console.log('[SW] 检测期间频道列表已更新，丢弃本次健康检测结果')
+    isHealthChecking = false
+    healthCheckTimer = setTimeout(() => {
+      performHealthCheck()
+    }, 5 * 60 * 1000)
+    return
   }
 
   // 批量发送健康结果（替代逐条 CHANNEL_HEALTH_UPDATE）

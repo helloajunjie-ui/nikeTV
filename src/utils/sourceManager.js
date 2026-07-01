@@ -51,17 +51,23 @@ export async function filterAliveChannels(channels, onProgress) {
   // 分批并发检测
   for (let i = 0; i < channels.length; i += MAX_CONCURRENT) {
     const batch = channels.slice(i, i + MAX_CONCURRENT)
-    const checks = batch.map(async (ch) => {
-      const alive = await checkSourceHealth(ch.url)
+    const batchResults = await Promise.allSettled(
+      batch.map(async (ch) => {
+        const alive = await checkSourceHealth(ch.url)
+        return { ch, alive }
+      })
+    )
+
+    // 批次完成后统一处理结果，避免并发进度计数竞态
+    for (const result of batchResults) {
       checked++
-      onProgress?.(checked, channels.length, deadUrls.size)
-      if (alive) {
-        results.push(ch)
+      if (result.status === 'fulfilled' && result.value.alive) {
+        results.push(result.value.ch)
       } else {
-        deadUrls.add(ch.url)
+        deadUrls.add(result.value?.ch?.url || 'unknown')
       }
-    })
-    await Promise.allSettled(checks)
+    }
+    onProgress?.(checked, channels.length, deadUrls.size)
   }
 
   return results

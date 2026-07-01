@@ -33,4 +33,16 @@ export const presets = [
   { group: 'HerbertHe/iptv-sources', label: '🇨🇳 聚合', url: 'https://raw.githubusercontent.com/HerbertHe/iptv-sources/gh-pages/cn.m3u' },
   { group: 'HerbertHe/iptv-sources', label: '🇨🇳 央视', url: 'https://raw.githubusercontent.com/HerbertHe/iptv-sources/gh-pages/cn_c.m3u' },
   { group: 'HerbertHe/iptv-sources', label: '🇨🇳 卫视', url: 'https://raw.githubusercontent.com/HerbertHe/iptv-sources/gh-pages/cn_p.m3u' },
+
+  // ── inkss 精选源 ──
+  { group: 'inkss/精选', label: '📡 IPv4 精选', url: 'https://gist.githubusercontent.com/inkss/0cf33e9f52fbb1f91bc5eb0144e504cf/raw/ipv4.m3u' },
+  { group: 'inkss/精选', label: '📡 IPv6 精选', url: 'https://gist.githubusercontent.com/inkss/0cf33e9f52fbb1f91bc5eb0144e504cf/raw/ipv6.m3u' },
+
+  // ── 上游聚合源（inkss 附录推荐） ──
+  { group: '上游聚合', label: '📡 YanG-1989 聚合', url: 'https://raw.githubusercontent.com/YanG-1989/m3u/main/Gather.m3u' },
+  { group: '上游聚合', label: '📡 fanmingming IPv6', url: 'https://raw.githubusercontent.com/fanmingming/live/main/tv/m3u/ipv6.m3u' },
+  { group: '上游聚合', label: '📡 YueChan Live', url: 'https://raw.githubusercontent.com/YueChan/Live/main/IPTV.m3u' },
+  { group: '上游聚合', label: '📡 drangjchen IPv6', url: 'https://raw.githubusercontent.com/drangjchen/IPTV/main/M3U/ipv6.m3u' },
+  { group: '上游聚合', label: '📡 Kimentanm aptv', url: 'https://raw.githubusercontent.com/Kimentanm/aptv/master/m3u/iptv.m3u' },
+  { group: '上游聚合', label: '📡 liu673cn box IPv6', url: 'https://raw.githubusercontent.com/liu673cn/box/main/libs/tv/ipv6.m3u' },
 ]

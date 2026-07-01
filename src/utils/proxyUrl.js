@@ -26,6 +26,14 @@ export function getProxiedUrl(url) {
 }
 
 /**
+ * 通用代理包装（语义别名，适用于任何需要代理的 URL：M3U8/TS/EPG XML 等）
+ * 与 getProxiedUrl 功能一致，命名更通用
+ */
+export function getProxyUrl(url) {
+  return getProxiedUrl(url)
+}
+
+/**
  * 批量代理频道列表中的 URL
  */
 export function proxyChannelList(channels) {

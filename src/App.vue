@@ -263,7 +263,7 @@ import { refreshFromUpstream } from './utils/sourceManager.js'
 import { parseM3U, loadM3USource } from './utils/m3uParser.js'
 import { startAutoUpdate, fetchLatestSource, matchRepo } from './utils/sourceUpdater.js'
 import { getPresetChannels } from './utils/presetCache.js'
-import { getProxiedUrl } from './utils/proxyUrl.js'
+import { getProxiedUrl, getProxyUrl } from './utils/proxyUrl.js'
 import { presets } from './utils/presets.js'
 
 // ===== 频道状态 =====
@@ -750,33 +750,55 @@ onMounted(async () => {
   // 避免启动时请求不可达服务导致控制台网络错误
   ipv6Supported.value = false
 
-  // 尝试加载 EPG（多 HTTPS 源 fallback）
-  // 不再使用公共代理——EPG XML 文件可能很大，公共代理会掐断连接
-  // 只使用 HTTPS 直连的 EPG 源
-  const epgConfigs = [
-    { url: 'https://epg.pw/xmltv/epg.xml' },
-    { url: 'https://epg.best/xmltv/epg.xml' },
-    { url: 'https://epg.pw/xmltv/epg.xml?type=cn' },
-  ]
-  for (const cfg of epgConfigs) {
+  // 尝试加载 EPG（走 Worker 代理 + localStorage 12h 缓存）
+  async function fetchEPG(epgUrl) {
+    const cacheKey = `epg_cache_${epgUrl}`
+    const cachedData = localStorage.getItem(cacheKey)
+    const cacheTime = localStorage.getItem(`${cacheKey}_time`)
+
+    // 缓存命中且未过期（12 小时）
+    if (cachedData && cacheTime && (Date.now() - cacheTime < 12 * 60 * 60 * 1000)) {
+      return cachedData
+    }
+
+    // 走 Worker 代理拉取，彻底解决 CORS
+    const safeUrl = getProxyUrl(epgUrl)
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 10000)
+    const timer = setTimeout(() => controller.abort(), 15000)
     try {
-      const response = await fetch(cfg.url, { signal: controller.signal })
+      const resp = await fetch(safeUrl, { signal: controller.signal })
       clearTimeout(timer)
-      if (response.ok) {
-        const xml = await response.text()
-        if (xml && xml.includes('<tv>')) {
-          epgData.value = parseEPG(xml)
-          epgIndex.value = buildEpgIndex(epgData.value)
-          updateEPG()
-          break
-        }
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const text = await resp.text()
+      // 写入缓存
+      try {
+        localStorage.setItem(cacheKey, text)
+        localStorage.setItem(`${cacheKey}_time`, Date.now())
+      } catch { /* localStorage 容量满则忽略 */ }
+      return text
+    } catch (e) {
+      clearTimeout(timer)
+      throw e
+    }
+  }
+
+  const epgUrls = [
+    'https://epg.pw/xmltv/epg.xml',
+    'https://epg.best/xmltv/epg.xml',
+    'https://epg.pw/xmltv/epg.xml?type=cn',
+  ]
+  for (const url of epgUrls) {
+    try {
+      const xml = await fetchEPG(url)
+      if (xml && xml.includes('<tv>')) {
+        epgData.value = parseEPG(xml)
+        epgIndex.value = buildEpgIndex(epgData.value)
+        updateEPG()
+        break
       }
     } catch {
-      // 网络错误或超时，尝试下一个源
+      // 失败则尝试下一个源
     }
-    clearTimeout(timer)
   }
 
   // 如果有频道，同步给 SW 并后台检测健康度

@@ -122,6 +122,13 @@ export async function checkUpdate(sourceUrl) {
     return { hasUpdate: false, latestSha: null, repo, filePath }
   }
 
+  // 首次运行：cached 为 undefined，此时应写入 SHA 但不触发更新
+  // 避免每次页面首次加载都拉取一次完整 M3U
+  if (cached === undefined) {
+    await set(cacheKey, latestSha)
+    return { hasUpdate: false, latestSha, repo, filePath }
+  }
+
   const hasUpdate = cached !== latestSha
 
   // 更新缓存 SHA

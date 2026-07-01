@@ -68,8 +68,8 @@ export async function getPresetChannels(url, fetcher) {
       return { channels: cached.channels, fromCache: true }
     }
     // 已过期：先返回旧数据，同时后台刷新
-    // 不 await，让刷新在后台进行
-    refreshInBackground(url, fetcher)
+    // 不 await，让刷新在后台进行；catch 防止未捕获的 Promise 拒绝
+    refreshInBackground(url, fetcher).catch(() => {})
     return { channels: cached.channels, fromCache: true }
   }
 

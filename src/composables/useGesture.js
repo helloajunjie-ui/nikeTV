@@ -78,30 +78,38 @@ export function useGesture({ onSwipeLeft, onSwipeRight, onSwipeUp, onSwipeDown }
   }
 
   // 键盘/遥控器支持
-  // 映射规则：
-  //   ArrowUp    → 上一个频道 (prevChannel)
-  //   ArrowDown  → 下一个频道 (nextChannel)
-  //   ArrowLeft  → 音量减小
-  //   ArrowRight → 音量增大
+  // 映射规则（统一方向语义）：
+  //   ArrowUp      → 上一个频道 (prevChannel)
+  //   ArrowDown    → 下一个频道 (nextChannel)
+  //   ArrowLeft    → 上一个频道 (prevChannel)
+  //   ArrowRight   → 下一个频道 (nextChannel)
+  //   PageUp       → 音量增大
+  //   PageDown     → 音量减小
+  //
+  // 设计说明：电视遥控器的方向键通常用于频道切换（上下左右都是切台），
+  // 音量通过独立按键控制。这里用 PageUp/PageDown 替代左右键调音量，
+  // 避免与频道切换的方向语义冲突。
   function onKeyDown(e) {
     switch (e.key) {
       case 'ArrowUp':
+      case 'ArrowLeft':
         e.preventDefault()
         onSwipeUp?.()
         break
       case 'ArrowDown':
+      case 'ArrowRight':
         e.preventDefault()
         onSwipeDown?.()
         break
-      case 'ArrowLeft':
-        e.preventDefault()
-        // 音量减 0.05
-        volume.value = Math.max(0, +(volume.value - 0.05).toFixed(2))
-        break
-      case 'ArrowRight':
+      case 'PageUp':
         e.preventDefault()
         // 音量加 0.05
         volume.value = Math.min(1, +(volume.value + 0.05).toFixed(2))
+        break
+      case 'PageDown':
+        e.preventDefault()
+        // 音量减 0.05
+        volume.value = Math.max(0, +(volume.value - 0.05).toFixed(2))
         break
     }
   }

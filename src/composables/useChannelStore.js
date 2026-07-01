@@ -83,7 +83,8 @@ export function useChannelStore() {
    * 同名频道合并为多线路，返回 { added, total }
    */
   async function addSource(channelList, sourceMeta = {}) {
-    const sourceId = sourceMeta.url || `source-${Date.now()}`
+    // 用 URL 做 sourceId，如果无 URL（粘贴内容）则用 label 或时间戳
+    const sourceId = sourceMeta.url || sourceMeta.label || `source-${Date.now()}`
     const existingSource = sources.value.find(s => s.id === sourceId)
 
     if (existingSource) {
@@ -125,6 +126,11 @@ export function useChannelStore() {
           if (!existing.urls.some(eu => eu.url === u.url)) {
             existing.urls.push(u)
           }
+        }
+        // 如果旧 group 是"未分类"且新频道有具体分组，则更新
+        const firstCh = channelList.find(c => channelId(c) === id)
+        if (firstCh?.group && existing.group === '未分类') {
+          existing.group = firstCh.group
         }
       } else {
         // 新频道 → 创建条目

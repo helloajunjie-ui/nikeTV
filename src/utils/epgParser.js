@@ -162,14 +162,20 @@ function parseXMLTVDate(str) {
   const match = str.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\s*([+-]\d{2})(\d{2})?$/)
   if (!match) return new Date(str)
 
-  const [, year, month, day, hour, min, sec, tzHour, tzMin = '00'] = match
-  // 构造 UTC 时间
+  const [, year, month, day, hour, min, sec, tzStr, tzMinStr = '00'] = match
+  // 解析时区偏移（分钟）
+  const tzSign = tzStr[0] === '-' ? -1 : 1
+  const tzHour = parseInt(tzStr.slice(1), 10)
+  const tzMin = parseInt(tzMinStr, 10)
+  const tzOffsetMinutes = tzSign * (tzHour * 60 + tzMin)
+
+  // 构造 UTC 时间：本地时间减去时区偏移
   const date = new Date(Date.UTC(
     parseInt(year),
     parseInt(month) - 1,
     parseInt(day),
-    parseInt(hour) - parseInt(tzHour),
-    parseInt(min) - parseInt(tzMin),
+    parseInt(hour),
+    parseInt(min) - tzOffsetMinutes,
     parseInt(sec)
   ))
   return date

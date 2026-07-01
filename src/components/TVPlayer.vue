@@ -13,17 +13,34 @@
       autoplay
     ></video>
 
-    <!-- 加载状态 -->
+    <!-- 加载状态（含实时网速 + 进度条） -->
     <div v-if="loading" class="absolute inset-0 flex items-center justify-center">
-      <div class="flex flex-col items-center gap-3">
+      <div class="flex flex-col items-center gap-4">
+        <!-- 旋转动画 -->
         <div class="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin"></div>
-        <span class="text-white/40 text-sm">{{ loadingText }}</span>
+        <!-- 加载文本 + 网速 -->
+        <div class="flex flex-col items-center gap-1">
+          <span class="text-white/40 text-sm">{{ loadingText }}</span>
+          <span v-if="downloadSpeed > 0" class="text-white/25 text-xs font-mono">
+            {{ downloadSpeed }} KB/s
+          </span>
+          <span v-else class="text-white/20 text-xs">等待响应...</span>
+        </div>
+        <!-- 加载进度条 -->
+        <div class="w-40 h-0.5 bg-white/10 rounded-full overflow-hidden">
+          <div
+            class="h-full bg-white/30 rounded-full transition-all duration-300"
+            :style="{ width: loadingProgress + '%' }"
+          ></div>
+        </div>
+        <!-- 已等待时间 -->
+        <span class="text-white/15 text-xs font-mono">{{ elapsedSeconds }}s</span>
       </div>
     </div>
 
     <!-- 错误提示 -->
     <div v-if="errorMsg" class="absolute inset-0 flex items-center justify-center">
-      <div class="bg-black/60 backdrop-blur-sm px-6 py-3 rounded-xl text-white/70 text-sm">
+      <div class="bg-black/60 backdrop-blur-sm px-6 py-3 rounded-xl text-white/70 text-sm max-w-xs text-center">
         {{ errorMsg }}
       </div>
     </div>
@@ -74,6 +91,11 @@ const showChannelIndicator = ref(false)
 const muted = ref(true)
 const fitMode = ref('object-contain')
 
+// 加载状态增强
+const downloadSpeed = ref(0)
+const loadingProgress = ref(0)
+const elapsedSeconds = ref(0)
+
 let osdTimer = null
 let indicatorTimer = null
 let unmuteTimer = null
@@ -82,6 +104,15 @@ let errorMsgTimer = null // showError 的自动清除定时器
 let hls = null
 let errorRetryCount = 0
 const MAX_RETRIES = 2
+
+// 加载超时兜底：15 秒没加载成功自动触发错误处理
+let loadTimeoutTimer = null
+const LOAD_TIMEOUT = 15000
+// 网速采样定时器
+let speedSampler = null
+// 加载计时器（秒）
+let elapsedTimer = null
+let loadStartTime = 0
 
 const osdClasses = computed(() => [
   'bg-gradient-to-t from-black/70 via-black/30 to-transparent',
@@ -266,8 +297,11 @@ function initPlayer() {
   const url = getCurrentUrl()
   if (!video || !url) return
 
-  // 清理旧实例和错误定时器
+  // 清理旧实例和所有定时器
   clearTimeout(errorTimer)
+  clearTimeout(loadTimeoutTimer)
+  clearInterval(speedSampler)
+  clearInterval(elapsedTimer)
   if (hls) {
     hls.destroy()
     hls = null
@@ -279,6 +313,30 @@ function initPlayer() {
   loading.value = true
   loadingText.value = `线路 ${(props.channel?._activeIdx || 0) + 1}/${props.channel?.urls?.length || 1}`
   errorRetryCount = 0
+  downloadSpeed.value = 0
+  loadingProgress.value = 0
+  elapsedSeconds.value = 0
+  loadStartTime = Date.now()
+
+  // 启动加载计时器（每秒更新已等待时间）
+  elapsedTimer = setInterval(() => {
+    elapsedSeconds.value = Math.floor((Date.now() - loadStartTime) / 1000)
+    // 进度条模拟：前 5 秒快速到 60%，之后缓慢增长
+    if (loadingProgress.value < 60) {
+      loadingProgress.value = Math.min(60, (elapsedSeconds.value / 5) * 60)
+    } else if (loadingProgress.value < 90) {
+      loadingProgress.value = 60 + (elapsedSeconds.value - 5) * 3
+    }
+  }, 1000)
+
+  // 加载超时兜底：15 秒后如果还在 loading，触发错误处理
+  loadTimeoutTimer = setTimeout(() => {
+    if (loading.value) {
+      clearInterval(elapsedTimer)
+      clearInterval(speedSampler)
+      onVideoError()
+    }
+  }, LOAD_TIMEOUT)
 
   const streamUrl = getProxiedUrl(url)
 
@@ -305,7 +363,29 @@ function initPlayer() {
     })
     hls.loadSource(streamUrl)
     hls.attachMedia(video)
+
+    // hls.js 网速采样：通过 frag 加载统计估算实时速度
+    let lastLoadedBytes = 0
+    let lastLoadTime = Date.now()
+    hls.on(Hls.Events.FRAG_LOADING, () => {
+      lastLoadTime = Date.now()
+    })
+    hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
+      const now = Date.now()
+      const bytes = data.stats.loaded
+      const elapsed = (now - lastLoadTime) / 1000
+      if (elapsed > 0 && bytes > 0) {
+        const speed = Math.round((bytes / 1024) / elapsed)
+        if (speed > 0) downloadSpeed.value = speed
+      }
+      lastLoadedBytes = bytes
+      lastLoadTime = now
+      // 进度条：加载到 frag 说明至少 manifest 解析成功
+      loadingProgress.value = Math.max(loadingProgress.value, 75)
+    })
+
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      loadingProgress.value = 100
       onReady()
       onVideoMetaLoaded()
     })
@@ -346,6 +426,10 @@ function initPlayer() {
 
 function onReady() {
   loading.value = false
+  // 清理加载相关定时器
+  clearTimeout(loadTimeoutTimer)
+  clearInterval(speedSampler)
+  clearInterval(elapsedTimer)
   const video = videoRef.value
   if (video) {
     video.volume = props.volume
@@ -372,6 +456,9 @@ onBeforeUnmount(() => {
   clearTimeout(unmuteTimer)
   clearTimeout(errorTimer)
   clearTimeout(errorMsgTimer)
+  clearTimeout(loadTimeoutTimer)
+  clearInterval(speedSampler)
+  clearInterval(elapsedTimer)
   document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 

@@ -1,12 +1,12 @@
 /**
  * 源管理器 - 自动更新 + 健康度检测
- * 
+ *
  * 核心策略：
  * 1. 启动时加载缓存的频道列表
  * 2. 后台异步检测每个源的可用性（HEAD 请求）
  * 3. 死源自动标记 + 跳过
  * 4. 定期从上游 GitHub RAW 源刷新频道列表
- * 5. Mixed Content 自动升级为 HTTPS（通过 Worker 代理）
+ * 5. 所有 URL 通过 Worker 代理（由 proxyUrl.js 处理）
  */
 
 import { get, set } from 'idb-keyval'
@@ -58,7 +58,7 @@ export async function filterAliveChannels(channels, onProgress) {
       })
     )
 
-    // 批次完成后统一处理结果，避免并发进度计数竞态
+    // 批次完成后统一处理结果
     for (const result of batchResults) {
       checked++
       if (result.status === 'fulfilled' && result.value.alive) {
@@ -75,52 +75,25 @@ export async function filterAliveChannels(channels, onProgress) {
 
 /**
  * 从上游源刷新频道列表
- * 支持 GitHub RAW 等自动维护的源
+ * 直接 fetch，不再使用公共代理
  */
-/**
- * 判断当前是否为 Vite 开发环境
- */
-function isDev() {
-  return location.hostname === 'localhost' || location.hostname === '127.0.0.1'
-}
-
-/**
- * 将 GitHub RAW URL 转换为 Vite 代理路径（开发环境）
- */
-function proxyUrl(input) {
-  if (!isDev()) return input
-  if (input.includes('raw.githubusercontent.com')) {
-    const path = input.replace('https://raw.githubusercontent.com', '')
-    return `/m3u-proxy${path}`
-  }
-  return input
-}
-
 export async function refreshFromUpstream(sourceUrl) {
   if (!sourceUrl) return null
 
-  const attempts = sourceUrl.startsWith('https://')
-    ? [proxyUrl(sourceUrl)]
-    : [
-        `https://corsproxy.io/?${encodeURIComponent(sourceUrl)}`,
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(sourceUrl)}`,
-      ]
-
-  for (const url of attempts) {
-    try {
-      const response = await fetch(url, {
-        cache: 'no-cache',
-        headers: { 'Cache-Control': 'no-cache' },
-      })
-      if (!response.ok) continue
-      return await response.text()
-    } catch {
-      continue
-    }
+  try {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 15000)
+    const response = await fetch(sourceUrl, {
+      signal: controller.signal,
+      cache: 'no-cache',
+      headers: { 'Cache-Control': 'no-cache' },
+    })
+    clearTimeout(timer)
+    if (!response.ok) return null
+    return await response.text()
+  } catch {
+    return null
   }
-
-  console.warn('上游源刷新失败: 所有连接方式均失败')
-  return null
 }
 
 /**
@@ -140,22 +113,7 @@ export async function cacheHealthStatus(channels) {
 }
 
 /**
- * 自动修复 Mixed Content 问题
- * 将 http:// 流通过 Worker 代理升级为 https://
- */
-export function upgradeToHTTPS(url, proxyBase) {
-  if (!proxyBase) return url
-  if (url.startsWith('http://')) {
-    return `${proxyBase}/?url=${encodeURIComponent(url)}`
-  }
-  return url
-}
-
-/**
  * 检测当前网络是否支持 IPv6
- * 使用 fetch + no-cors 模式，配合 AbortController 超时
- * 注意：此函数仅在用户主动导入 IPv6 源时调用，不在启动时自动调用
- * 即使服务不可达，no-cors + catch 也能保证不抛出未捕获异常
  */
 export async function checkIPv6Support() {
   try {

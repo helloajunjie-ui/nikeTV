@@ -103,11 +103,11 @@ let errorTimer = null
 let errorMsgTimer = null // showError 的自动清除定时器
 let hls = null
 let errorRetryCount = 0
-const MAX_RETRIES = 2
+const MAX_RETRIES = 1 // 每条线路只重试 1 次，快速遍历所有线路
 
-// 加载超时兜底：15 秒没加载成功自动触发错误处理
+// 加载超时兜底：12 秒没加载成功自动触发错误处理
 let loadTimeoutTimer = null
-const LOAD_TIMEOUT = 15000
+const LOAD_TIMEOUT = 12000
 // 网速采样定时器
 let speedSampler = null
 // 加载计时器（秒）
@@ -254,6 +254,10 @@ function togglePlay() {
 
 /**
  * 错误处理：重试 → 切线路 → 切频道
+ *
+ * 策略：每条线路最多重试 1 次，快速遍历所有可用线路。
+ * 如果所有线路都挂了，自动切到下一个频道。
+ * hls.js 内部 NETWORK_ERROR 已自愈 2 次，到这里说明确实有问题。
  */
 function onVideoError() {
   const ch = props.channel
@@ -265,7 +269,7 @@ function onVideoError() {
   if (errorRetryCount < MAX_RETRIES) {
     errorRetryCount++
     showError(`加载失败，正在重试 (${errorRetryCount}/${MAX_RETRIES})`)
-    errorTimer = setTimeout(() => initPlayer(), 5000)
+    errorTimer = setTimeout(() => initPlayer(), 3000) // 重试等待缩短到 3 秒
     return
   }
 
@@ -276,14 +280,14 @@ function onVideoError() {
     if (ch._activeIdx !== oldIdx) {
       errorRetryCount = 0
       showError(`切换到线路 ${ch._activeIdx + 1}/${ch.urls.length}`)
-      errorTimer = setTimeout(() => initPlayer(), 5000)
+      errorTimer = setTimeout(() => initPlayer(), 3000) // 切线路等待缩短到 3 秒
       return
     }
   }
 
   // 所有线路都试过了，切到下一个频道
   showError('当前频道所有线路不可用，切换到下一个频道')
-  errorTimer = setTimeout(() => emit('next'), 5000)
+  errorTimer = setTimeout(() => emit('next'), 3000) // 切频道等待缩短到 3 秒
 }
 
 function showError(msg) {
@@ -329,7 +333,8 @@ function initPlayer() {
     }
   }, 1000)
 
-  // 加载超时兜底：15 秒后如果还在 loading，触发错误处理
+  // 加载超时兜底：12 秒后如果还在 loading，触发错误处理
+  // 配合 MAX_RETRIES=1 + 3s 等待，整体链路：3s(重试) + 3s(切线路) + 3s(切频道) ≈ 12s 内完成全部兜底
   loadTimeoutTimer = setTimeout(() => {
     if (loading.value) {
       clearInterval(elapsedTimer)
@@ -390,25 +395,24 @@ function initPlayer() {
       onVideoMetaLoaded()
     })
     // hls.js 实例每次都是新的（hls.destroy() 已清理旧的），所以不需要 off
+    // 策略：hls.js 内部最多自愈 2 次，之后直接放弃当前线路走 onVideoError
+    // 避免 hls.js 默认的 5 次重试导致用户等待过久
     let hlsErrorCount = 0
-    const MAX_HLS_ERRORS = 5
+    const MAX_HLS_ERRORS = 2
     hls.on(Hls.Events.ERROR, (event, data) => {
       if (data.fatal) {
         hlsErrorCount++
+        if (hlsErrorCount >= MAX_HLS_ERRORS) {
+          // 自愈失败，放弃当前线路
+          onVideoError()
+          return
+        }
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
-            if (hlsErrorCount < MAX_HLS_ERRORS) {
-              hls.startLoad()
-            } else {
-              onVideoError()
-            }
+            hls.startLoad()
             break
           case Hls.ErrorTypes.MEDIA_ERROR:
-            if (hlsErrorCount < MAX_HLS_ERRORS) {
-              hls.recoverMediaError()
-            } else {
-              onVideoError()
-            }
+            hls.recoverMediaError()
             break
           default:
             onVideoError()

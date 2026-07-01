@@ -259,10 +259,11 @@ import SourceHealthPanel from './components/SourceHealthPanel.vue'
 import { useChannelStore } from './composables/useChannelStore.js'
 import { useGesture } from './composables/useGesture.js'
 import { parseEPG, getCurrentProgramme, buildEpgIndex, findProgrammes } from './utils/epgParser.js'
-import { filterAliveChannels, refreshFromUpstream } from './utils/sourceManager.js'
+import { filterAliveChannels, refreshFromUpstream, checkSourceHealth } from './utils/sourceManager.js'
 import { parseM3U, loadM3USource } from './utils/m3uParser.js'
 import { startAutoUpdate, fetchLatestSource, matchRepo } from './utils/sourceUpdater.js'
 import { getPresetChannels } from './utils/presetCache.js'
+import { getProxiedUrl } from './utils/proxyUrl.js'
 import { presets } from './utils/presets.js'
 
 // ===== 频道状态 =====
@@ -468,7 +469,9 @@ async function checkAllSources() {
     const batch = flatUrls.slice(i, i + MAX_CONCURRENT)
     const batchResults = await Promise.allSettled(
       batch.map(async (item) => {
-        const alive = await checkSourceHealth(item.url)
+        // 使用代理后的 URL 进行健康检测（避免 Mixed Content 问题）
+        const proxiedUrl = await getProxiedUrl(item.url)
+        const alive = await checkSourceHealth(proxiedUrl)
         return { item, alive }
       })
     )

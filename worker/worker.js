@@ -65,10 +65,25 @@ export default {
         headers: filterHopByHopHeaders(request.headers),
         body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : null,
         signal: controller.signal,
+        // 关键：不跟随重定向，让客户端自己处理（对 TS 分片流更友好）
+        redirect: 'manual',
       })
 
       let response = await fetch(modifiedRequest)
       clearTimeout(timeoutId)
+
+      // ── 处理重定向 ──
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('Location')
+        if (location) {
+          // 跟随重定向，但用新的请求（避免手动处理）
+          response = await fetch(location, {
+            method: request.method,
+            headers: filterHopByHopHeaders(request.headers),
+            signal: controller.signal,
+          })
+        }
+      }
 
       // ── 构建响应头 ──
       const newHeaders = new Headers(response.headers)
@@ -101,10 +116,59 @@ export default {
       }
 
       // ── 流式响应（带大小限制） ──
+      // 对于 TS/视频分片，使用流式传输而非收集所有 chunks
+      // 这样可以减少延迟，让视频尽快开始播放
       const maxSize = parseInt(typeof MAX_RESPONSE_SIZE !== 'undefined'
         ? MAX_RESPONSE_SIZE : DEFAULT_MAX_SIZE, 10)
 
       if (response.body) {
+        // 检查是否是视频/音频流 → 使用流式传输
+        const contentType = newHeaders.get('Content-Type') || ''
+        const isStreamable = contentType.includes('video') ||
+                             contentType.includes('audio') ||
+                             contentType.includes('octet-stream') ||
+                             targetUrl.includes('.ts') ||
+                             targetUrl.includes('.m4s')
+
+        if (isStreamable) {
+          // 流式传输：直接透传 response.body，不收集
+          // 使用 TransformStream 做大小限制
+          const { readable, writable } = new TransformStream()
+          const writer = writable.getWriter()
+          const reader = response.body.getReader()
+          let totalSize = 0
+
+          // 后台读取并转发，同时检查大小限制
+          ;(async () => {
+            try {
+              while (true) {
+                const { done, value } = await reader.read()
+                if (done) {
+                  await writer.close()
+                  break
+                }
+                totalSize += value.byteLength
+                if (totalSize > maxSize) {
+                  reader.cancel()
+                  writer.abort(new Error('Response too large'))
+                  break
+                }
+                await writer.write(value)
+              }
+            } catch (e) {
+              // 客户端断开连接是正常情况，忽略错误
+              try { writer.abort(e) } catch {}
+            }
+          })()
+
+          return new Response(readable, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: newHeaders,
+          })
+        }
+
+        // 非流式内容（如 JSON、XML）：收集后返回
         const reader = response.body.getReader()
         let size = 0
         const chunks = []

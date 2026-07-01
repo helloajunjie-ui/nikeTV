@@ -72,7 +72,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import Hls from 'hls.js'
-import { getProxiedUrl } from '../utils/proxyUrl.js'
+import { getProxiedUrl, markWorkerDead } from '../utils/proxyUrl.js'
 
 const props = defineProps({
   channel: { type: Object, default: null },
@@ -296,7 +296,7 @@ function showError(msg) {
   errorMsgTimer = setTimeout(() => { errorMsg.value = '' }, 3000)
 }
 
-function initPlayer() {
+async function initPlayer() {
   const video = videoRef.value
   const url = getCurrentUrl()
   if (!video || !url) return
@@ -343,7 +343,8 @@ function initPlayer() {
     }
   }, LOAD_TIMEOUT)
 
-  const streamUrl = getProxiedUrl(url)
+  // 异步获取代理后的 URL（首次调用会自动检测 Worker 健康状态）
+  const streamUrl = await getProxiedUrl(url)
 
   // 原生 HLS 支持（iOS Safari）
   if (video.canPlayType('application/vnd.apple.mpegurl')) {
@@ -404,6 +405,11 @@ function initPlayer() {
         hlsErrorCount++
         if (hlsErrorCount >= MAX_HLS_ERRORS) {
           // 自愈失败，放弃当前线路
+          // 如果当前 URL 是通过 Worker 代理的，标记 Worker 不可用并降级
+          // 通过检测 streamUrl 是否包含 workers.dev 来判断是否走 Worker 代理
+          if (streamUrl.includes('workers.dev')) {
+            markWorkerDead()
+          }
           onVideoError()
           return
         }

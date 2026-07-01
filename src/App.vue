@@ -73,6 +73,8 @@
           <div
             v-if="showHUD"
             class="absolute inset-0 z-30 pointer-events-none"
+            @mouseenter="onHUDMouseEnter"
+            @mouseleave="onHUDMouseLeave"
           >
             <!-- 顶部栏 -->
             <div class="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent pointer-events-auto">
@@ -183,6 +185,15 @@
           @mouseenter="showChannelList = true"
         >
           <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-12 bg-white/10 rounded-r-md group-hover:bg-white/20 transition-colors"></div>
+        </div>
+
+        <!-- ===== 右侧悬停热区（鼠标用户触发 HUD 换源） ===== -->
+        <!-- 鼠标移到右侧边缘显示 HUD 顶部工具栏，让用户能看到并点击源切换按钮 -->
+        <div
+          class="absolute right-0 top-0 bottom-0 z-20 w-1 hover:w-4 cursor-pointer transition-all duration-150 group"
+          @mouseenter="showHUDForAWhile()"
+        >
+          <div class="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-12 bg-white/10 rounded-l-md group-hover:bg-white/20 transition-colors"></div>
         </div>
 
         <!-- ===== 频道列表侧栏（左侧，按分组展示） ===== -->
@@ -717,6 +728,28 @@ function toggleHUD() {
       showHUD.value = false
     }, 5000)
   }
+}
+
+// 鼠标悬停触发 HUD 显示（右侧热区），5秒后自动隐藏
+function showHUDForAWhile() {
+  showHUD.value = true
+  clearTimeout(hudTimer)
+  hudTimer = setTimeout(() => {
+    showHUD.value = false
+  }, 5000)
+}
+
+// 鼠标移入 HUD 区域时重置自动隐藏计时器
+function onHUDMouseEnter() {
+  clearTimeout(hudTimer)
+}
+
+// 鼠标移出 HUD 区域时重新启动自动隐藏计时器
+function onHUDMouseLeave() {
+  clearTimeout(hudTimer)
+  hudTimer = setTimeout(() => {
+    showHUD.value = false
+  }, 3000)
 }
 
 // ===== 键盘快捷键 =====

@@ -170,10 +170,13 @@
         </Transition>
 
         <!-- ===== 左侧悬停热区（鼠标用户触发频道列表） ===== -->
+        <!-- 注意：只负责触发显示，不负责关闭。
+             如果加 mouseleave 关闭，ChannelList 渲染后会覆盖热区触发 mouseleave，
+             导致 showChannelList 被置 false → ChannelList 销毁 → 热区暴露 → mouseenter 再次触发，
+             形成闪烁循环。关闭由 ChannelList 的 @close 或 Escape 键处理。 -->
         <div
           class="absolute left-0 top-0 bottom-0 z-20 w-1 hover:w-4 cursor-pointer transition-all duration-150 group"
           @mouseenter="showChannelList = true"
-          @mouseleave="showChannelList = false"
         >
           <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-12 bg-white/10 rounded-r-md group-hover:bg-white/20 transition-colors"></div>
         </div>

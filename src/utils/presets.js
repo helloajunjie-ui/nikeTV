@@ -45,4 +45,16 @@ export const presets = [
   { group: '上游聚合', label: '📡 drangjchen IPv6', url: 'https://raw.githubusercontent.com/drangjchen/IPTV/main/M3U/ipv6.m3u' },
   { group: '上游聚合', label: '📡 Kimentanm aptv', url: 'https://raw.githubusercontent.com/Kimentanm/aptv/master/m3u/iptv.m3u' },
   { group: '上游聚合', label: '📡 liu673cn box IPv6', url: 'https://raw.githubusercontent.com/liu673cn/box/main/libs/tv/ipv6.m3u' },
+  { group: '上游聚合', label: '📡 mzky/itvlist', url: 'https://raw.githubusercontent.com/mzky/checklist/refs/heads/master/itvlist.m3u' },
+  { group: '上游聚合', label: '📡 suxuang IPv4', url: 'https://raw.githubusercontent.com/suxuang/myIPTV/main/ipv4.m3u' },
+  { group: '上游聚合', label: '📡 Jsnzkpg 聚合', url: 'https://raw.githubusercontent.com/Jsnzkpg/Jsnzkpg/Jsnzkpg/Jsnzkpg1.m3u' },
+
+  // ── APTV 推荐源 ──
+  { group: 'APTV 推荐', label: '📡 APTV 聚合', url: 'https://gh.aptv.app/https://raw.githubusercontent.com/Kimentanm/aptv/master/m3u/iptv.m3u' },
+  { group: 'APTV 推荐', label: '🎮 虎牙直播', url: 'https://cdn.jsdelivr.net/gh/Kimentanm/aptv@master/m3u/ya.m3u' },
+  { group: 'APTV 推荐', label: '🎮 虎牙一起看', url: 'https://cdn.jsdelivr.net/gh/Kimentanm/aptv@refs/heads/master/m3u/yqk.m3u' },
+  { group: 'APTV 推荐', label: '🎮 斗鱼一起看', url: 'https://live.freetv.top/douyuyqk.m3u' },
+  { group: 'APTV 推荐', label: '🎮 BiliBili 直播', url: 'https://www.goodiptv.club/bililive.m3u' },
+  { group: 'APTV 推荐', label: '🎮 YY 轮播', url: 'https://www.goodiptv.club/yylunbo.m3u?url=https://lunbo.freetv.top' },
+  { group: 'APTV 推荐', label: '📻 广播电台', url: 'https://cdn.jsdelivr.net/gh/Kimentanm/aptv@master/m3u/radio.m3u' },
 ]

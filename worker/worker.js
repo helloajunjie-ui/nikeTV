@@ -54,14 +54,21 @@ export default {
         })
       }
 
-      // 伪装浏览器 UA
+      // ── 隐身衣：突破防盗链 ──
+      // 流媒体服务器通常检查 Referer/Origin 防盗链
+      // 伪造 Referer 和 Origin 为目标源站自身，骗过绝大多数基础防盗链
+      const targetOrigin = parsed.origin
+      const fetchHeaders = new Headers()
+      fetchHeaders.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+      fetchHeaders.set('Accept', '*/*')
+      fetchHeaders.set('Accept-Language', 'zh-CN,zh;q=0.9')
+      // 【隐身核心】告诉目标服务器：我是从你自己的网站发起的请求
+      fetchHeaders.set('Referer', targetOrigin + '/')
+      fetchHeaders.set('Origin', targetOrigin)
+
       const modifiedRequest = new Request(targetUrl, {
         method: request.method,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': '*/*',
-          'Accept-Language': 'zh-CN,zh;q=0.9',
-        },
+        headers: fetchHeaders,
         redirect: 'follow',
       })
 

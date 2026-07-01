@@ -1,0 +1,146 @@
+[
+  {
+    "name": ".github",
+    "path": ".github",
+    "sha": "787bbd24470ff089165c93b3cfa98e0bfafcb6e7",
+    "size": 0,
+    "url": "https://api.github.com/repos/Free-TV/IPTV/contents/.github?ref=master",
+    "html_url": "https://github.com/Free-TV/IPTV/tree/master/.github",
+    "git_url": "https://api.github.com/repos/Free-TV/IPTV/git/trees/787bbd24470ff089165c93b3cfa98e0bfafcb6e7",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/Free-TV/IPTV/contents/.github?ref=master",
+      "git": "https://api.github.com/repos/Free-TV/IPTV/git/trees/787bbd24470ff089165c93b3cfa98e0bfafcb6e7",
+      "html": "https://github.com/Free-TV/IPTV/tree/master/.github"
+    }
+  },
+  {
+    "name": "README.md",
+    "path": "README.md",
+    "sha": "0e12720d243bb79361e34d83fbfebc02c2051e5c",
+    "size": 11390,
+    "url": "https://api.github.com/repos/Free-TV/IPTV/contents/README.md?ref=master",
+    "html_url": "https://github.com/Free-TV/IPTV/blob/master/README.md",
+    "git_url": "https://api.github.com/repos/Free-TV/IPTV/git/blobs/0e12720d243bb79361e34d83fbfebc02c2051e5c",
+    "download_url": "https://raw.githubusercontent.com/Free-TV/IPTV/master/README.md",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/Free-TV/IPTV/contents/README.md?ref=master",
+      "git": "https://api.github.com/repos/Free-TV/IPTV/git/blobs/0e12720d243bb79361e34d83fbfebc02c2051e5c",
+      "html": "https://github.com/Free-TV/IPTV/blob/master/README.md"
+    }
+  },
+  {
+    "name": "epglist.txt",
+    "path": "epglist.txt",
+    "sha": "e8c2f85a3af6519641a7397ac817e0e8427173c0",
+    "size": 6175,
+    "url": "https://api.github.com/repos/Free-TV/IPTV/contents/epglist.txt?ref=master",
+    "html_url": "https://github.com/Free-TV/IPTV/blob/master/epglist.txt",
+    "git_url": "https://api.github.com/repos/Free-TV/IPTV/git/blobs/e8c2f85a3af6519641a7397ac817e0e8427173c0",
+    "download_url": "https://raw.githubusercontent.com/Free-TV/IPTV/master/epglist.txt",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/Free-TV/IPTV/contents/epglist.txt?ref=master",
+      "git": "https://api.github.com/repos/Free-TV/IPTV/git/blobs/e8c2f85a3af6519641a7397ac817e0e8427173c0",
+      "html": "https://github.com/Free-TV/IPTV/blob/master/epglist.txt"
+    }
+  },
+  {
+    "name": "flag_order.txt",
+    "path": "flag_order.txt",
+    "sha": "c5b7e9bace713af23500e67a03413c28ade397d9",
+    "size": 1407,
+    "url": "https://api.github.com/repos/Free-TV/IPTV/contents/flag_order.txt?ref=master",
+    "html_url": "https://github.com/Free-TV/IPTV/blob/master/flag_order.txt",
+    "git_url": "https://api.github.com/repos/Free-TV/IPTV/git/blobs/c5b7e9bace713af23500e67a03413c28ade397d9",
+    "download_url": "https://raw.githubusercontent.com/Free-TV/IPTV/master/flag_order.txt",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/Free-TV/IPTV/contents/flag_order.txt?ref=master",
+      "git": "https://api.github.com/repos/Free-TV/IPTV/git/blobs/c5b7e9bace713af23500e67a03413c28ade397d9",
+      "html": "https://github.com/Free-TV/IPTV/blob/master/flag_order.txt"
+    }
+  },
+  {
+    "name": "lists",
+    "path": "lists",
+    "sha": "e33f923d9248fb2ee0e1fcaf2f8b3aa4a8c53271",
+    "size": 0,
+    "url": "https://api.github.com/repos/Free-TV/IPTV/contents/lists?ref=master",
+    "html_url": "https://github.com/Free-TV/IPTV/tree/master/lists",
+    "git_url": "https://api.github.com/repos/Free-TV/IPTV/git/trees/e33f923d9248fb2ee0e1fcaf2f8b3aa4a8c53271",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/Free-TV/IPTV/contents/lists?ref=master",
+      "git": "https://api.github.com/repos/Free-TV/IPTV/git/trees/e33f923d9248fb2ee0e1fcaf2f8b3aa4a8c53271",
+      "html": "https://github.com/Free-TV/IPTV/tree/master/lists"
+    }
+  },
+  {
+    "name": "make_flags.sh",
+    "path": "make_flags.sh",
+    "sha": "d508b98c1f4ffdfbcbbbd2736d048dad49a73e35",
+    "size": 949,
+    "url": "https://api.github.com/repos/Free-TV/IPTV/contents/make_flags.sh?ref=master",
+    "html_url": "https://github.com/Free-TV/IPTV/blob/master/make_flags.sh",
+    "git_url": "https://api.github.com/repos/Free-TV/IPTV/git/blobs/d508b98c1f4ffdfbcbbbd2736d048dad49a73e35",
+    "download_url": "https://raw.githubusercontent.com/Free-TV/IPTV/master/make_flags.sh",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/Free-TV/IPTV/contents/make_flags.sh?ref=master",
+      "git": "https://api.github.com/repos/Free-TV/IPTV/git/blobs/d508b98c1f4ffdfbcbbbd2736d048dad49a73e35",
+      "html": "https://github.com/Free-TV/IPTV/blob/master/make_flags.sh"
+    }
+  },
+  {
+    "name": "make_playlist.py",
+    "path": "make_playlist.py",
+    "sha": "143655c3ba40b8e1762eda048e698e8a8c3ab914",
+    "size": 5006,
+    "url": "https://api.github.com/repos/Free-TV/IPTV/contents/make_playlist.py?ref=master",
+    "html_url": "https://github.com/Free-TV/IPTV/blob/master/make_playlist.py",
+    "git_url": "https://api.github.com/repos/Free-TV/IPTV/git/blobs/143655c3ba40b8e1762eda048e698e8a8c3ab914",
+    "download_url": "https://raw.githubusercontent.com/Free-TV/IPTV/master/make_playlist.py",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/Free-TV/IPTV/contents/make_playlist.py?ref=master",
+      "git": "https://api.github.com/repos/Free-TV/IPTV/git/blobs/143655c3ba40b8e1762eda048e698e8a8c3ab914",
+      "html": "https://github.com/Free-TV/IPTV/blob/master/make_playlist.py"
+    }
+  },
+  {
+    "name": "playlist.m3u8",
+    "path": "playlist.m3u8",
+    "sha": "1074df1d243af118d38ebb52883be08c9e12d330",
+    "size": 523395,
+    "url": "https://api.github.com/repos/Free-TV/IPTV/contents/playlist.m3u8?ref=master",
+    "html_url": "https://github.com/Free-TV/IPTV/blob/master/playlist.m3u8",
+    "git_url": "https://api.github.com/repos/Free-TV/IPTV/git/blobs/1074df1d243af118d38ebb52883be08c9e12d330",
+    "download_url": "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/Free-TV/IPTV/contents/playlist.m3u8?ref=master",
+      "git": "https://api.github.com/repos/Free-TV/IPTV/git/blobs/1074df1d243af118d38ebb52883be08c9e12d330",
+      "html": "https://github.com/Free-TV/IPTV/blob/master/playlist.m3u8"
+    }
+  },
+  {
+    "name": "playlists",
+    "path": "playlists",
+    "sha": "47ec88f1976d320e9b6c0e3e2d8f23b2f084354c",
+    "size": 0,
+    "url": "https://api.github.com/repos/Free-TV/IPTV/contents/playlists?ref=master",
+    "html_url": "https://github.com/Free-TV/IPTV/tree/master/playlists",
+    "git_url": "https://api.github.com/repos/Free-TV/IPTV/git/trees/47ec88f1976d320e9b6c0e3e2d8f23b2f084354c",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/Free-TV/IPTV/contents/playlists?ref=master",
+      "git": "https://api.github.com/repos/Free-TV/IPTV/git/trees/47ec88f1976d320e9b6c0e3e2d8f23b2f084354c",
+      "html": "https://github.com/Free-TV/IPTV/tree/master/playlists"
+    }
+  }
+]

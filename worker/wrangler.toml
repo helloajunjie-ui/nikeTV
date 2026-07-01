@@ -1,0 +1,18 @@
+name = "nikotv-proxy"
+main = "worker.js"
+compatibility_date = "2026-07-01"
+
+# 免费套餐：10万请求/天，个人使用绰绰有余
+# 如需自定义域名，取消下面注释并配置 DNS
+# routes = [
+#   { pattern = "proxy.yourdomain.com", zone_name = "yourdomain.com" }
+# ]
+
+# 环境变量：用于前端配置
+# 部署后运行：npx wrangler secret put PROXY_SECRET
+[vars]
+ENVIRONMENT = "production"
+
+# 资源限制
+[limits]
+cpu_ms = 500      # 每次请求 CPU 时间上限（毫秒）

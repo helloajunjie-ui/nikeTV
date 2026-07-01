@@ -253,8 +253,10 @@ export function useChannelStore() {
    */
   async function persist() {
     try {
-      await set(STORE_KEY, channels.value)
-      await set(SOURCES_KEY, sources.value)
+      // 必须深拷贝脱壳：Vue Proxy 无法被 IndexedDB 的结构化克隆算法序列化
+      // 直接存 channels.value 会导致 DataCloneError
+      await set(STORE_KEY, JSON.parse(JSON.stringify(channels.value)))
+      await set(SOURCES_KEY, JSON.parse(JSON.stringify(sources.value)))
       await set(ACTIVE_KEY, activeIndex.value)
     } catch (e) {
       console.warn('持久化失败:', e)

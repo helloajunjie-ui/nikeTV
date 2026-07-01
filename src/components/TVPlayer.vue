@@ -72,7 +72,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import Hls from 'hls.js'
-import { getProxiedUrl, markWorkerDead } from '../utils/proxyUrl.js'
+import { getProxiedUrl } from '../utils/proxyUrl.js'
 
 const props = defineProps({
   channel: { type: Object, default: null },
@@ -405,11 +405,7 @@ async function initPlayer() {
         hlsErrorCount++
         if (hlsErrorCount >= MAX_HLS_ERRORS) {
           // 自愈失败，放弃当前线路
-          // 如果当前 URL 是通过 Worker 代理的，标记 Worker 不可用并降级
-          // 通过检测 streamUrl 是否包含 workers.dev 来判断是否走 Worker 代理
-          if (streamUrl.includes('workers.dev')) {
-            markWorkerDead()
-          }
+          // 不再标记 Worker 不可用——Worker 是可靠的，失败的是源本身
           onVideoError()
           return
         }

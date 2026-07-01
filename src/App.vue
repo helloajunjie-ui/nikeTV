@@ -819,26 +819,19 @@ onMounted(async () => {
   // 避免启动时请求不可达服务导致控制台网络错误
   ipv6Supported.value = false
 
-  // 尝试加载 EPG（多源 + 多代理 fallback）
-  // 使用 AbortController 实现超时，兼容所有浏览器
+  // 尝试加载 EPG（多 HTTPS 源 fallback）
+  // 不再使用公共代理——EPG XML 文件可能很大，公共代理会掐断连接
+  // 只使用 HTTPS 直连的 EPG 源
   const epgConfigs = [
-    // 方案一：epg.pw（稳定，支持 CORS）
-    { url: 'https://epg.pw/xmltv/epg.xml', direct: true },
-    // 方案二：epg.51zmt.top 通过代理
-    { url: 'http://epg.51zmt.top:8000/e.xml', proxy: 'https://api.allorigins.win/raw?url=' },
-    { url: 'http://epg.51zmt.top:8000/e.xml', proxy: 'https://corsproxy.io/?' },
-    { url: 'http://epg.51zmt.top:8000/e.xml', proxy: 'https://api.codetabs.com/v1/proxy?quest=' },
-    // 方案三：epg.best 备用
-    { url: 'https://epg.best/xmltv/epg.xml', direct: true },
+    { url: 'https://epg.pw/xmltv/epg.xml' },
+    { url: 'https://epg.best/xmltv/epg.xml' },
+    { url: 'https://epg.pw/xmltv/epg.xml?type=cn' },
   ]
   for (const cfg of epgConfigs) {
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 8000)
+    const timer = setTimeout(() => controller.abort(), 10000)
     try {
-      const fetchUrl = cfg.direct
-        ? cfg.url
-        : `${cfg.proxy}${encodeURIComponent(cfg.url)}`
-      const response = await fetch(fetchUrl, { signal: controller.signal })
+      const response = await fetch(cfg.url, { signal: controller.signal })
       clearTimeout(timer)
       if (response.ok) {
         const xml = await response.text()
@@ -850,7 +843,7 @@ onMounted(async () => {
         }
       }
     } catch {
-      // 网络错误或超时，清理 timer 后尝试下一个源
+      // 网络错误或超时，尝试下一个源
     }
     clearTimeout(timer)
   }

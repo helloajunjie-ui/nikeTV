@@ -261,7 +261,8 @@ import { useGesture } from './composables/useGesture.js'
 import { parseEPG, getCurrentProgramme, buildEpgIndex, findProgrammes } from './utils/epgParser.js'
 import { refreshFromUpstream } from './utils/sourceManager.js'
 import { parseM3U, loadM3USource } from './utils/m3uParser.js'
-import { startAutoUpdate, fetchLatestSource, matchRepo } from './utils/sourceUpdater.js'
+import { startAutoUpdate as startUpstreamUpdate } from './utils/sourceUpdater.js'
+import { startAutoUpdate as startSourceUpdate } from './composables/useSourceUpdater.js'
 import { getPresetChannels } from './utils/presetCache.js'
 import { getProxyUrl } from './utils/proxyUrl.js'
 import { presets } from './utils/presets.js'
@@ -320,6 +321,7 @@ let epgTimer = null
 
 // ===== 上游源自动更新 =====
 let stopAutoUpdate = null
+let stopSourceUpdate = null
 
 /**
  * 根据 URL 匹配对应的仓库和文件路径
@@ -862,11 +864,42 @@ onMounted(async () => {
     showUpdateNotification(label)
   })
 
+  // 启动本地精选源（iptv4.m3u）自动更新检测
+  // 每 1 小时检查 Worker /source-version，版本号变化则拉取最新列表
+  stopSourceUpdate = startSourceUpdate(async (m3uContent) => {
+    const freshChannels = parseM3U(m3uContent)
+    if (freshChannels.length === 0) return
+
+    // 找到本地精选源
+    const localSource = sources.value.find(s => s.url === '/iptv4.m3u')
+    if (!localSource) return
+
+    const oldIndex = activeIndex.value
+    const oldCh = currentChannel.value
+    const oldChannelId = oldCh?.id
+
+    await addSource(freshChannels, { url: '/iptv4.m3u', label: localSource.label })
+
+    // 恢复当前播放频道
+    if (oldChannelId) {
+      const newIndex = channels.value.findIndex(c => c.id === oldChannelId)
+      if (newIndex >= 0) {
+        activeIndex.value = newIndex
+      } else {
+        activeIndex.value = Math.min(oldIndex, channels.value.length - 1)
+      }
+    }
+
+    setTimeout(() => syncChannelsToSW(), 300)
+    showUpdateNotification('📺 源列表已更新')
+  })
+
   document.addEventListener('keydown', onKeyDown)
 })
 
 onBeforeUnmount(() => {
   stopAutoUpdate?.()
+  stopSourceUpdate?.()
   clearInterval(epgTimer)
   clearTimeout(hudTimer)
   clearTimeout(updateNotifTimer)

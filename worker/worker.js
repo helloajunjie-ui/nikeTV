@@ -1,13 +1,19 @@
 /**
  * NikoTV - Cloudflare Worker
  *
- * 职责（极简）：
- * 1. EPG XML 代理（解决 CORS 跨域）
- * 2. 健康检查
+ * 职责：
+ * 1. EPG XML 代理（解决 CORS）
+ * 2. 源列表版本号（客户端轮询检测更新）
+ * 3. 健康检查
  *
  * 视频流直接播放，不经过 Worker
- * IPTV 源多为 HTTP，家用网络直连不会被拦截
  */
+
+// ── 源列表版本配置 ──
+// 每次在 GitHub 更新 iptv4.m3u 后，手动递增此版本号
+// 客户端检测到版本号变化，自动拉取最新列表
+const SOURCE_VERSION = '1'
+const SOURCE_URL = 'https://raw.githubusercontent.com/helloajunjie-ui/nikeTV/main/public/iptv4.m3u'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -18,7 +24,6 @@ const CORS_HEADERS = {
 
 export default {
   async fetch(request) {
-    // OPTIONS 预检
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: CORS_HEADERS })
     }
@@ -33,7 +38,19 @@ export default {
       })
     }
 
-    // 核心代理（仅用于 EPG XML 等非视频资源）
+    // 源列表版本查询（客户端轮询）
+    // 返回当前版本号和最新源列表下载地址
+    if (url.pathname === '/source-version') {
+      return new Response(JSON.stringify({
+        version: SOURCE_VERSION,
+        url: SOURCE_URL,
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+      })
+    }
+
+    // EPG XML 代理
     const targetUrl = url.searchParams.get('url')
     if (!targetUrl) {
       return new Response('Missing ?url=', { status: 400, headers: CORS_HEADERS })

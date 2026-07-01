@@ -739,7 +739,7 @@ onMounted(async () => {
   // 每 30 分钟检查一次所有上游仓库是否有新 commit
   // 检测到更新后静默拉取新 M3U 替换频道列表
   // 传入函数引用，使 startAutoUpdate 每次 poll 时能读取最新的 sources
-  stopAutoUpdate = startAutoUpdate(() => sources.value, async (sourceId, sourceUrl) => {
+  stopAutoUpdate = startUpstreamUpdate(() => sources.value, async (sourceId, sourceUrl) => {
     // 通过 URL 匹配仓库和文件路径
     const match = matchRepoForUpdate(sourceUrl)
     if (!match) return

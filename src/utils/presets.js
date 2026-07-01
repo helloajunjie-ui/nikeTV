@@ -7,6 +7,12 @@
  *   分类源（news/sports/entertainment/movies 等）每个包含数百频道
  */
 export const presets = [
+  // ── 本地精选源（zbds.top 聚合，375 频道，已清理非直播内容） ──
+  { group: '本地精选', label: '🇨🇳 央视·卫视·地方 聚合', url: '/iptv4.m3u' },
+
+  // ── fwc 世界杯/央视 4K 源 ──
+  { group: 'fwc 世界杯', label: '🏆 世界杯·央视 4K', url: 'http://82.156.243.185:33389/fwc.m3u' },
+
   // ── vbskycn/iptv ──
   { group: 'vbskycn/iptv', label: '📡 IPv4', url: 'https://raw.githubusercontent.com/vbskycn/iptv/master/tv/iptv4.m3u' },
   { group: 'vbskycn/iptv', label: '📡 IPv6', url: 'https://raw.githubusercontent.com/vbskycn/iptv/master/tv/iptv6.m3u' },
@@ -50,11 +56,7 @@ export const presets = [
   { group: '上游聚合', label: '📡 Jsnzkpg 聚合', url: 'https://raw.githubusercontent.com/Jsnzkpg/Jsnzkpg/Jsnzkpg/Jsnzkpg1.m3u' },
 
   // ── APTV 推荐源 ──
-  { group: 'APTV 推荐', label: '📡 APTV 聚合', url: 'https://gh.aptv.app/https://raw.githubusercontent.com/Kimentanm/aptv/master/m3u/iptv.m3u' },
   { group: 'APTV 推荐', label: '🎮 虎牙直播', url: 'https://cdn.jsdelivr.net/gh/Kimentanm/aptv@master/m3u/ya.m3u' },
   { group: 'APTV 推荐', label: '🎮 虎牙一起看', url: 'https://cdn.jsdelivr.net/gh/Kimentanm/aptv@refs/heads/master/m3u/yqk.m3u' },
-  { group: 'APTV 推荐', label: '🎮 斗鱼一起看', url: 'https://live.freetv.top/douyuyqk.m3u' },
-  { group: 'APTV 推荐', label: '🎮 BiliBili 直播', url: 'https://www.goodiptv.club/bililive.m3u' },
-  { group: 'APTV 推荐', label: '🎮 YY 轮播', url: 'https://www.goodiptv.club/yylunbo.m3u?url=https://lunbo.freetv.top' },
   { group: 'APTV 推荐', label: '📻 广播电台', url: 'https://cdn.jsdelivr.net/gh/Kimentanm/aptv@master/m3u/radio.m3u' },
 ]

@@ -89,8 +89,8 @@ function isDirtyName(name) {
   if (!name) return true
   // 包含浏览器 UA 标识
   if (/Mozilla|Chrome\/|Safari\/|Gecko|AppleWebKit|KHTML/i.test(name)) return true
-  // 名字过长（正常频道名一般不超过 30 个字符）
-  if (name.length > 40) return true
+  // 名字过长（超过 80 字符基本可判定为异常拼接）
+  if (name.length > 80) return true
   return false
 }
 
